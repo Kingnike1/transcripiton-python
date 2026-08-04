@@ -4,7 +4,7 @@ Contains business logic for meeting operations.
 Uses Repository Pattern for data access.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -50,8 +50,8 @@ class MeetingService:
             title=meeting.title.strip(),
             description=meeting.description,
             status=ProcessingStatus.CREATED.value,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         
         return self.repository.create(db_meeting)
@@ -99,7 +99,7 @@ class MeetingService:
         for key, value in update_data.items():
             setattr(db_meeting, key, value)
             
-        db_meeting.updated_at = datetime.utcnow()
+        db_meeting.updated_at = datetime.now(timezone.utc)
         
         return self.repository.update(db_meeting)
     

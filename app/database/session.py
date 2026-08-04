@@ -6,7 +6,7 @@ Handles connection to SQLite database.
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from app.core.config import settings
+from app.config import settings
 from app.database.base import Base
 
 # Create engine

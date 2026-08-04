@@ -3,7 +3,7 @@ Meeting database model.
 Represents a meeting in the database.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy import Integer, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -35,9 +35,9 @@ class Meeting(Base):
     status: Mapped[str] = mapped_column(
         String(20), default=ProcessingStatus.CREATED.value, nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
@@ -57,8 +57,8 @@ class Meeting(Base):
     
     def soft_delete(self) -> None:
         """Soft delete the meeting by setting deleted_at timestamp."""
-        self.deleted_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.deleted_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(timezone.utc)
     
     def __repr__(self) -> str:
         """String representation of meeting.
@@ -85,5 +85,5 @@ class Meeting(Base):
             return False
         
         self.status = new_status.value
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         return True

@@ -4,7 +4,7 @@ Manages background job processing queue.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 from uuid import uuid4
@@ -36,7 +36,7 @@ class Job:
     status: JobStatus = JobStatus.PENDING
     meeting_id: Optional[int] = None
     payload: Dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
@@ -45,7 +45,7 @@ class Job:
     def start(self) -> None:
         """Mark job as running."""
         self.status = JobStatus.RUNNING
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
     
     def complete(self, result: Optional[Dict[str, Any]] = None) -> None:
         """Mark job as completed.
@@ -54,7 +54,7 @@ class Job:
             result: Optional job result data
         """
         self.status = JobStatus.COMPLETED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.result = result
     
     def fail(self, error_message: str) -> None:
@@ -64,13 +64,13 @@ class Job:
             error_message: Description of the error
         """
         self.status = JobStatus.FAILED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.error_message = error_message
     
     def cancel(self) -> None:
         """Mark job as cancelled."""
         self.status = JobStatus.CANCELLED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
 
 
 class JobService:

@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 from app.core.enums import ProcessingStatus, JobType
-from app.core.exceptions import InvalidStatusTransitionError, PipelineError
+from app.exceptions import InvalidStatusTransitionError, PipelineError
 from app.services.meeting_service import MeetingService
 from app.services.job_service import job_service
 from app.services.pipeline_service import pipeline_service

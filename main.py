@@ -10,8 +10,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 
 from app.api.meetings import router as meetings_router
-from app.core.config import settings
+from app.config import settings
 from app.core.logging import logger
+from app.core.handlers import register_exception_handlers
 from app.database.session import init_db
 
 # Create FastAPI application
@@ -23,6 +24,9 @@ app = FastAPI(
 
 # Initialize database
 init_db()
+
+# Register exception handlers
+register_exception_handlers(app)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -55,24 +59,6 @@ def health_check():
         "status": "healthy",
         "version": app.version,
     }
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Global exception handler.
-    
-    Args:
-        request: HTTP request
-        exc: Exception that occurred
-        
-    Returns:
-        HTMLResponse with error page
-    """
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return HTMLResponse(
-        content=f"<h1>500 - Internal Server Error</h1><p>{str(exc)}</p>",
-        status_code=500,
-    )
 
 
 if __name__ == "__main__":

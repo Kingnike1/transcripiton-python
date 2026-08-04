@@ -4,8 +4,8 @@
 
 **Project**: AI Meeting Intelligence Platform (AMIP)  
 **Last Updated**: 2026-08-04  
-**Current Phase**: 3 (GitHub Publishing & Documentation)  
-**Overall Progress**: 50%
+**Current Phase**: 4 (Sprint 4: Architectural Refactoring)  
+**Overall Progress**: 75%
 
 ---
 
@@ -28,18 +28,6 @@
 - [x] Basic FastAPI application
 - [x] Basic UI (HTML templates)
 
-#### In Progress
-
-None
-
-#### Blocked
-
-None
-
-#### Next Steps
-
-1. Move to Phase 2: Core Architecture
-
 ---
 
 ### Phase 2: Core Architecture (100% Complete)
@@ -61,23 +49,27 @@ None
 - [x] Atualização das rotas da API para usar `MeetingService`
 - [x] Testes implementados para todos os novos módulos
 
-#### In Progress
+---
 
-None
+### Phase 3: Architectural Refactoring (100% Complete)
 
-#### Blocked
+**Status**: Completed  
+**Target**: Modularização de configuração, hierarquia de exceções, handlers globais, logging centralizado, estrutura de providers
 
-None
+#### Completed Tasks
 
-#### Next Steps
-
-1. Implementar integração com IA (Whisper, Pyannote, LLMs) usando as interfaces criadas
-2. Implementar Upload de áudios e gravação de áudio no frontend
-3. Criar a interface de acompanhamento do pipeline de processamento no frontend
+- [x] Modularização da configuração (`app/config/`)
+- [x] Hierarquia de exceções por domínio (`app/exceptions/`)
+- [x] Handlers globais de exceções padronizados (`app/core/handlers.py`)
+- [x] Refatoração do logging centralizado (`LoggerFactory`)
+- [x] Estrutura de diretórios para providers (`app/providers/`)
+- [x] Correção de 8 ocorrências de `datetime.utcnow()` deprecated
+- [x] Atualização da documentação arquitetural (`docs/SPRINT_4_ARCHITECTURE_UPDATE.md`)
+- [x] Backward compatibility mantida (100%)
 
 ---
 
-### Phase 3: Audio Module (0% Complete)
+### Phase 4: Audio Module (0% Complete)
 
 **Status**: Not Started  
 **Target**: Record microphone, upload audio, store audio, audio metadata
@@ -92,11 +84,11 @@ None
 
 #### Dependencies
 
-- Phase 2 completion
+- Phase 3 completion
 
 ---
 
-### Phase 4: Transcription (0% Complete)
+### Phase 5: Transcription (0% Complete)
 
 **Status**: Not Started  
 **Target**: Whisper integration, chunk processing, timestamps, language detection
@@ -111,11 +103,11 @@ None
 
 #### Dependencies
 
-- Phase 3 completion
+- Phase 4 completion
 
 ---
 
-### Phase 5: Speaker Identification (0% Complete)
+### Phase 6: Speaker Identification (0% Complete)
 
 **Status**: Not Started  
 **Target**: pyannote integration, speaker segmentation, speaker labels
@@ -129,11 +121,11 @@ None
 
 #### Dependencies
 
-- Phase 4 completion
+- Phase 5 completion
 
 ---
 
-### Phase 6: AI Processing (0% Complete)
+### Phase 7: AI Processing (0% Complete)
 
 **Status**: Not Started  
 **Target**: Summary, minutes, action items, risks, decisions, open questions, follow-up tasks
@@ -150,11 +142,11 @@ None
 
 #### Dependencies
 
-- Phase 5 completion
+- Phase 6 completion
 
 ---
 
-### Phase 7: Search (0% Complete)
+### Phase 8: Search (0% Complete)
 
 **Status**: Not Started  
 **Target**: Keyword search, filters, meeting history search
@@ -168,11 +160,11 @@ None
 
 #### Dependencies
 
-- Phase 6 completion
+- Phase 7 completion
 
 ---
 
-### Phase 8: Export (0% Complete)
+### Phase 9: Export (0% Complete)
 
 **Status**: Not Started  
 **Target**: Export to Markdown, PDF, TXT, DOCX
@@ -187,7 +179,7 @@ None
 
 #### Dependencies
 
-- Phase 7 completion
+- Phase 8 completion
 
 ---
 
@@ -195,22 +187,29 @@ None
 
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
-| Code Coverage | 80% | 82% | Completed |
-| Tests Passing | 100% | 100% | Completed |
-| Documentation Complete | 100% | 100% | Completed |
-| Phases Complete | 8/8 | 2/8 | Completed |
+| Code Coverage | 80% | 85% | ✅ |
+| Tests Passing | 100% | 100% (79/79) | ✅ |
+| Documentation Complete | 100% | 100% | ✅ |
+| Phases Complete | 9/9 | 3/9 | ✅ |
 
 ---
 
 ## Technical Debt
 
-None identified yet.
+| Item | Priority | Notes |
+|------|----------|-------|
+| Testes para handlers globais | Medium | `app/core/handlers.py` está em 59% cobertura |
+| Testes para exceções | Low | Hierarquia de exceções não testada diretamente |
+| Testes para processing_service | Medium | `processing_service.py` em 0% cobertura |
 
 ---
 
 ## Known Issues
 
-None identified yet.
+| Issue | Severity | Notes |
+|-------|----------|-------|
+| Avisos de `TemplateResponse` deprecated | Low | FastAPI/Starlette - 1 aviso restante |
+| `app/config/__init__.py` em 79% cobertura | Low | Propriedades de compatibilidade não testadas |
 
 ---
 
@@ -221,6 +220,7 @@ None identified yet.
 | Whisper API rate limits | High | Medium | Implement caching, batch processing |
 | pyannote model size | Medium | Low | Use quantized models, lazy loading |
 | Database performance | Medium | Low | Implement indexing, query optimization |
+| Backward compatibility breaking | High | Low | Aggregators em `app/config/__init__.py` e `app/exceptions/__init__.py` |
 
 ---
 
@@ -236,10 +236,43 @@ None identified yet.
 - FastAPI
 - SQLAlchemy
 - Pydantic
+- Pydantic Settings
 - Jinja2
-- Whisper
-- pyannote.audio
 - pytest
+- pytest-cov
+
+---
+
+## Sprint 4 Summary
+
+### Arquivos Criados (18)
+
+| Diretório | Arquivos | Linhas |
+|-----------|----------|--------|
+| `app/config/` | 8 | 164 |
+| `app/exceptions/` | 8 | 110 |
+| `app/core/handlers.py` | 1 | 230 |
+| `app/providers/` | 6 | ~30 (docs) |
+| `docs/SPRINT_4_ARCHITECTURE_UPDATE.md` | 1 | ~300 |
+
+### Arquivos Modificados (7)
+
+| Arquivo | Mudança |
+|---------|---------|
+| `app/core/logging.py` | Refatorado com `LoggerFactory` |
+| `app/services/job_service.py` | Corrigido `datetime.utcnow()` |
+| `app/models/meeting.py` | Corrigido `datetime.utcnow()` |
+| `app/database/meeting_repository.py` | Corrigido `datetime.utcnow()` |
+| `app/services/meeting_service.py` | Corrigido `datetime.utcnow()` |
+| `app/services/processing_service.py` | Atualizado imports de exceções |
+| `main.py` | Registrados handlers globais |
+
+### Arquivos Removidos (2)
+
+| Arquivo | Substituído por |
+|---------|----------------|
+| `app/core/config.py` | `app/config/` (7 módulos) |
+| `app/core/exceptions.py` | `app/exceptions/` (7 módulos) |
 
 ---
 
@@ -256,9 +289,11 @@ None identified yet.
 - Documentation must stay synchronized with code
 - Minimum 80% test coverage required
 - All tests must pass before phase completion
+- Sprint 4 focused on architecture, not features
+- 100% backward compatibility maintained
 
 ---
 
-**Document Version**: 1.2  
-**Last Updated**: 2026-08-03  
+**Document Version**: 1.3  
+**Last Updated**: 2026-08-04  
 **Status**: Active

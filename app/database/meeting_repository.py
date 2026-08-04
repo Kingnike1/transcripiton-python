@@ -3,7 +3,7 @@ Meeting repository implementation.
 Concrete repository for Meeting model data access.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -105,8 +105,8 @@ class MeetingRepository(BaseRepository[Meeting]):
         if not meeting:
             return False
         
-        meeting.deleted_at = datetime.utcnow()
-        meeting.updated_at = datetime.utcnow()
+        meeting.deleted_at = datetime.now(timezone.utc)
+        meeting.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         
         return True

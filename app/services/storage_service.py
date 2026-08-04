@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-from app.core.config import settings
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
