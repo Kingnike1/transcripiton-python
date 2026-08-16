@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.request_context import get_request_id
+from app.core.request_context import REQUEST_ID_HEADER, get_request_id
 from app.exceptions import (
     AMIPError,
     AudioError,
@@ -58,14 +58,16 @@ def _error_response(
     detail: str,
 ) -> JSONResponse:
     """Build the only public error envelope used by application handlers."""
+    request_id = get_request_id(request)
     return JSONResponse(
         status_code=status_code,
         content={
             "status": "error",
             "code": code,
             "detail": detail,
-            "request_id": get_request_id(request),
+            "request_id": request_id,
         },
+        headers={REQUEST_ID_HEADER: request_id},
     )
 
 
