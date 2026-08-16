@@ -1,25 +1,19 @@
-"""
-Storage configuration module.
-Handles file storage settings and upload limits.
-"""
+"""Storage and upload-limit configuration."""
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+
+from app.config.base import AMIPBaseSettings
 
 
-class StorageSettings(BaseSettings):
+class StorageSettings(AMIPBaseSettings):
     """Storage-level settings."""
 
     STORAGE_PATH: str = Field(
         default="./storage",
-        description="Root path for file storage"
+        description="Root path for file storage",
     )
     MAX_UPLOAD_SIZE: int = Field(
-        default=500000000,
-        description="Maximum upload size in bytes (500MB default)"
+        default=500_000_000,
+        gt=0,
+        description="Maximum upload size in bytes",
     )
-
-    class Config:
-        """Pydantic config."""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
