@@ -1,105 +1,48 @@
-"""Orchestrate meeting processing status transitions and prototype jobs."""
+"""Coordinate meeting processing with durable jobs."""
 
 import logging
-from typing import Optional
 
 from app.core.enums import JobType, ProcessingStatus
-from app.exceptions import InvalidStatusTransitionError
-from app.services.interfaces import IAISummarizer, IExporter, ISpeakerIdentifier, ITranscriber
-from app.services.job_service import job_service
 from app.services.meeting_service import MeetingService
-from app.services.pipeline_service import pipeline_service
+from app.services.persistent_job_service import PersistentJobService
 
 logger = logging.getLogger(__name__)
 
 
 class ProcessingService:
-    """Coordinate the current in-memory processing prototype."""
+    """Coordinate meeting status and durable processing jobs."""
 
-    def __init__(self, meeting_service: MeetingService) -> None:
-        self.meeting_service = meeting_service
-
-    def register_components(
+    def __init__(
         self,
-        transcriber: Optional[ITranscriber] = None,
-        speaker_identifier: Optional[ISpeakerIdentifier] = None,
-        summarizer: Optional[IAISummarizer] = None,
-        exporter: Optional[IExporter] = None,
+        meeting_service: MeetingService,
+        job_service: PersistentJobService,
     ) -> None:
-        if transcriber:
-            pipeline_service.register_transcriber(transcriber)
-        if speaker_identifier:
-            pipeline_service.register_speaker_identifier(speaker_identifier)
-        if summarizer:
-            pipeline_service.register_summarizer(summarizer)
-        if exporter:
-            pipeline_service.register_exporter(exporter)
+        self.meeting_service = meeting_service
+        self.job_service = job_service
 
-    def start_processing(self, meeting_id: int, audio_path: str) -> str:
-        """Transition to transcription and create a prototype in-memory job."""
-        success = self.meeting_service.transition_status(
-            meeting_id,
-            ProcessingStatus.TRANSCRIBING,
-        )
-        if not success:
-            current = self.meeting_service.get_by_id(meeting_id)
-            raise InvalidStatusTransitionError(
-                "Cannot start processing. "
-                f"Current status: {current.status if current else 'unknown'}"
-            )
+    def start_transcription(self, meeting_id: int, audio_id: int) -> str:
+        """Create or return the active transcription job for a meeting."""
+        meeting = self.meeting_service.get_by_id(meeting_id)
+        if meeting is None:
+            raise ValueError("Meeting not found")
+        if meeting.status != ProcessingStatus.AUDIO_UPLOADED.value:
+            raise ValueError(f"Meeting is not ready for transcription: {meeting.status}")
 
-        job = job_service.create_job(
-            job_type=JobType.FULL_PIPELINE,
+        job = self.job_service.create_job(
             meeting_id=meeting_id,
-            payload={"audio_path": audio_path},
+            job_type=JobType.TRANSCRIBE,
+            payload={"audio_id": audio_id},
         )
-        logger.info(
-            "Started processing pipeline for meeting %s, job_id=%s",
-            meeting_id,
-            job.id,
-        )
+        logger.info("Queued transcription for meeting %s job_id=%s", meeting_id, job.id)
         return job.id
-
-    def handle_transcription_complete(self, meeting_id: int) -> bool:
-        return self.meeting_service.transition_status(
-            meeting_id,
-            ProcessingStatus.DIARIZING,
-        )
-
-    def handle_diarization_complete(self, meeting_id: int) -> bool:
-        return self.meeting_service.transition_status(
-            meeting_id,
-            ProcessingStatus.SUMMARIZING,
-        )
-
-    def handle_summarization_complete(self, meeting_id: int) -> bool:
-        return self.meeting_service.transition_status(
-            meeting_id,
-            ProcessingStatus.COMPLETED,
-        )
-
-    def handle_processing_error(self, meeting_id: int, error_message: str) -> bool:
-        success = self.meeting_service.transition_status(
-            meeting_id,
-            ProcessingStatus.FAILED,
-        )
-        if success:
-            logger.error("Meeting %s processing failed: %s", meeting_id, error_message)
-        return success
-
-    def retry_processing(self, meeting_id: int) -> bool:
-        return self.meeting_service.transition_status(
-            meeting_id,
-            ProcessingStatus.AUDIO_UPLOADED,
-        )
 
     def get_processing_status(self, meeting_id: int) -> dict[str, object]:
         meeting = self.meeting_service.get_by_id(meeting_id)
-        if not meeting:
+        if meeting is None:
             return {"error": "Meeting not found"}
 
         current_status = ProcessingStatus(meeting.status)
-        jobs = job_service.get_jobs_by_meeting(meeting_id)
+        jobs = self.job_service.get_jobs_by_meeting(meeting_id)
         return {
             "meeting_id": meeting.id,
             "title": meeting.title,
@@ -110,23 +53,21 @@ class ProcessingService:
             "jobs": [
                 {
                     "id": job.id,
-                    "type": job.type.value,
-                    "status": job.status.value,
-                    "created_at": job.created_at.isoformat() if job.created_at else None,
+                    "type": job.job_type,
+                    "status": job.status,
+                    "progress": job.progress,
+                    "attempt": job.attempt,
+                    "created_at": job.created_at.isoformat(),
                 }
                 for job in jobs
             ],
-            "pipeline_ready": pipeline_service.get_pipeline_status()["ready"],
         }
 
-    def mark_audio_uploaded(self, meeting_id: int) -> bool:
-        return self.meeting_service.transition_status(
-            meeting_id,
-            ProcessingStatus.AUDIO_UPLOADED,
-        )
+    def mark_transcribing(self, meeting_id: int) -> bool:
+        return self.meeting_service.transition_status(meeting_id, ProcessingStatus.TRANSCRIBING)
 
-    def mark_recording(self, meeting_id: int) -> bool:
-        return self.meeting_service.transition_status(
-            meeting_id,
-            ProcessingStatus.RECORDING,
-        )
+    def mark_failed(self, meeting_id: int, error_message: str) -> bool:
+        success = self.meeting_service.transition_status(meeting_id, ProcessingStatus.FAILED)
+        if success:
+            logger.error("Meeting %s processing failed: %s", meeting_id, error_message)
+        return success
