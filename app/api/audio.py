@@ -1,9 +1,14 @@
 """HTTP endpoints for meeting audio uploads and metadata."""
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 
 from app.api.dependencies import get_audio_service
-from app.exceptions.audio import AudioAlreadyExistsError, MeetingNotFoundError
+from app.exceptions.audio import (
+    AudioAlreadyExistsError,
+    AudioInspectorUnavailableError,
+    MeetingNotFoundError,
+)
 from app.schemas.audio import AudioResponse, AudioUploadResponse
 from app.services.audio_service import AudioService
 
@@ -20,13 +25,14 @@ async def upload_audio(
     file: UploadFile = File(...),
     service: AudioService = Depends(get_audio_service),
 ) -> AudioUploadResponse:
+    """Stream an uploaded file through the synchronous storage pipeline."""
     try:
-        content = await file.read()
-        audio = service.upload(
+        audio = await run_in_threadpool(
+            service.upload_stream,
             meeting_id=meeting_id,
             filename=file.filename or "",
             content_type=file.content_type or "application/octet-stream",
-            content=content,
+            stream=file.file,
         )
         return AudioUploadResponse(
             meeting_id=meeting_id,
@@ -37,6 +43,11 @@ async def upload_audio(
         raise HTTPException(status_code=404, detail=exc.message) from exc
     except AudioAlreadyExistsError as exc:
         raise HTTPException(status_code=409, detail=exc.message) from exc
+    except AudioInspectorUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Audio inspection service is unavailable",
+        ) from exc
     finally:
         await file.close()
 
