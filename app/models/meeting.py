@@ -1,5 +1,6 @@
 """Meeting database model."""
 
+from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import DateTime, Integer, String, Text
@@ -21,9 +22,9 @@ class Meeting(Base):
     status: Mapped[str] = mapped_column(
         String(20), default=ProcessingStatus.CREATED.value, nullable=False
     )
-    created_at: Mapped[object] = mapped_column(DateTime, default=utc_now)
-    updated_at: Mapped[object] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
-    deleted_at: Mapped[Optional[object]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     audios: Mapped[List["Audio"]] = relationship("Audio", back_populates="meeting")
     analysis: Mapped[Optional["MeetingAnalysis"]] = relationship(
