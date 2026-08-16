@@ -9,7 +9,8 @@
 **Branch:** `agent/stack-p0-8-documentation`  
 **Branch base / integração:** `develop`  
 **Head base verde:** `af4b4a5946f0633e733dcc0a4072629ee5c77031`  
-**Status:** P0.1–P0.7 integradas em `develop`; P0.8 em execução
+**PR:** #9  
+**Status:** P0.8 implementada e validada na branch; aguardando gates do head final, merge em `develop` e pós-merge
 
 ## Baseline
 
@@ -38,7 +39,7 @@ A P0.7 passou em CI e Quality no PR e novamente após merge em `develop`:
 | P0.5 — Erros seguros/request ID | Integrada em `develop` |
 | P0.6 — Lifecycle/configuração | Integrada em `develop` |
 | P0.7 — Qualidade/governança | Integrada em `develop` |
-| P0.8 — Organização documental | Em execução |
+| P0.8 — Organização documental | Implementada; PR #9 aberto |
 
 ---
 
@@ -55,33 +56,36 @@ docs/archive/  → histórico/superseded
 docs/adr/      → decisões arquiteturais
 ```
 
-### Implementado até agora
+### Implementado
 
 - [x] `docs/README.md` com mapa e regra de fonte da verdade.
 - [x] `docs/current/ARCHITECTURE.md`.
 - [x] `docs/current/DATABASE.md`.
 - [x] `docs/current/API.md`.
-- [x] `docs/current/DEPLOYMENT.md` reescrito sem Docker/cloud fictícios.
+- [x] `docs/current/DEPLOYMENT.md` reescrito sem infraestrutura fictícia.
 - [x] `docs/current/CONTRIBUTING.md` alinhado ao GitFlow/Quality atual.
 - [x] `docs/roadmap/FRONTEND.md` explicitamente planejado.
 - [x] `docs/roadmap/AI_PIPELINE.md` explicitamente planejado e dependente de jobs persistentes.
-- [x] `docs/archive/` criado para histórico.
-- [x] registros de prompts antigos e Sprints 4/5 arquivados com baseline Git preservada.
+- [x] `docs/archive/` com catálogo de prompts/Sprints superseded e baseline Git preservada.
 - [x] `PROJECT_CONTEXT.md` reescrito com matriz de capacidade real.
 - [x] `README.md` reescrito para não anunciar transcrição/LLM/export como funcionalidades entregues.
 - [x] `docs/00_PROJECT_OVERVIEW.md` reescrito.
-- [x] `PROJECT_GOVERNANCE.md` atualizado para a nova taxonomia documental.
+- [x] `PROJECT_GOVERNANCE.md` atualizado para a nova taxonomia.
+- [x] `docs/06_BACKLOG.md` sincronizado após P0.7.
+- [x] ADR-024 e TD-023 registram a taxonomia e a ordem de autoridade.
+- [x] caminhos antigos `docs/01..05`, `07..09` removidos depois de substituição.
+- [x] registros antigos de Sprint removidos da árvore ativa e catalogados em `archive/`.
+- [x] teste de regressão garante paths canônicos e impede retorno dos paths superseded.
+- [x] teste de links Markdown locais garante alvos existentes.
+- [x] CI + Quality da branch passaram antes da abertura do PR #9.
+- [x] PR #9 criado para `develop`.
 
-### Pendente
+### Pendente para fechamento
 
-- [ ] atualizar `docs/06_BACKLOG.md` com fechamento P0.7/P0.8;
-- [ ] registrar decisão técnica da taxonomia documental;
-- [ ] remover caminhos antigos `docs/01..05`, `07..09` após atualizar referências;
-- [ ] remover documentos históricos antigos da raiz/docs após catálogo em `archive/`;
-- [ ] procurar links/referências quebradas para paths antigos;
-- [ ] validar CI + Quality;
-- [ ] PR para `develop`;
-- [ ] merge + CI/Quality pós-merge.
+- [ ] CI + Quality do head final do PR #9.
+- [ ] marcar PR #9 pronto para review.
+- [ ] merge em `develop`.
+- [ ] CI + Quality pós-merge em `develop`.
 
 ---
 
@@ -117,5 +121,5 @@ docs/adr/      → decisões arquiteturais
 
 Essa Sprint é o último grande pré-requisito estrutural antes da primeira transcrição real.
 
-**Document Version:** 2.5  
+**Document Version:** 2.6  
 **Status:** Active
