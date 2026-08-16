@@ -28,7 +28,7 @@
 
 - [x] Criar `SqlAlchemyUnitOfWork`
 - [x] Definir Service Layer como proprietária de commit/rollback
-- [x] Tornar `MeetingRepository` transaction-neutral
+- [x] Tornar repositories transaction-neutral
 - [x] Migrar CRUD do `MeetingService` para Unit of Work
 - [x] Persistir transições de status em banco
 - [x] Migrar `AudioService` para a mesma política transacional
@@ -37,26 +37,37 @@
 - [x] Registrar ADR da decisão
 - [ ] Quality gate final e merge em `develop`
 
+### Sprint 6A — P0.2 Migrations com Alembic
+
+- [x] Inicializar Alembic
+- [x] Criar `alembic.ini` e ambiente de migrations
+- [x] Criar baseline `0001_initial_schema`
+- [x] Configurar SQLite batch migrations
+- [x] Usar `settings.DATABASE_URL` como fonte de configuração
+- [x] Validar `upgrade head` em banco vazio
+- [x] Comparar schema migrado com `Base.metadata`
+- [x] Validar adoção de banco legado via `stamp head`
+- [x] Validar `downgrade base` em banco descartável
+- [x] Registrar ADR-018
+- [x] Atualizar documentação de banco
+- [ ] Executar suíte completa no GitHub Actions quando o bloqueio de CI for resolvido
+- [ ] Integrar após P0.1 passar pelo quality gate
+
 ## P0 — Estabilização emergencial restante
-
-### P0.2 — Migrations
-
-- [ ] Inicializar Alembic
-- [ ] Criar baseline do schema atual
-- [ ] Configurar SQLite batch migrations
-- [ ] Adicionar verificação de migration ao CI
 
 ### P0.3 — Upload seguro em streaming
 
 - [ ] Ler `UploadFile` em chunks
 - [ ] Limitar tamanho durante escrita
 - [ ] Usar arquivo temporário e movimentação atômica
-- [ ] Integrar `ffprobe` para metadados reais
+- [ ] Validar/inspecionar mídia sem carregar o arquivo completo em RAM
+- [ ] Integrar `ffprobe` para duração, codec, canais e sample rate
+- [ ] Limpar temporários em erro/cancelamento
 
 ### P0.4 — Consistência e concorrência
 
 - [ ] Decidir um ou múltiplos áudios por reunião
-- [ ] Criar constraint correspondente no banco
+- [ ] Criar constraint correspondente via Alembic
 - [ ] Cobrir uploads concorrentes
 - [ ] Definir estratégia de idempotência
 
@@ -74,10 +85,13 @@
 - [ ] Concluir migração para Pydantic V2/`ConfigDict`
 - [ ] Validar secrets e DEBUG por ambiente
 - [ ] Corrigir `get_stale_processing(minutes)`
+- [ ] Retirar `Base.metadata.create_all()` do fluxo normal depois da adoção do Alembic
 
 ### P0.7 — Qualidade e governança
 
 - [ ] Expandir CI para `develop` e `stack/**`
+- [ ] Resolver disparo do GitHub Actions para o fluxo atual de integração
+- [ ] Adicionar verificação explícita de migrations ao CI
 - [ ] Adicionar Ruff
 - [ ] Adicionar type checking
 - [ ] Adicionar auditoria de dependências e segurança
@@ -133,6 +147,6 @@
 - [ ] Busca textual
 - [ ] Exportação Markdown, TXT, DOCX e PDF
 
-**Document Version:** 1.2  
-**Last Updated:** 2026-08-06  
+**Document Version:** 1.3  
+**Last Updated:** 2026-08-16  
 **Status:** Active
