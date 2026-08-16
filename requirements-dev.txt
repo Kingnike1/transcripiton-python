@@ -1,0 +1,11 @@
+# Test tooling (not installed in production runtime)
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+httpx2==2.9.0
+
+# Quality and security tooling used by CI/development
+ruff==0.16.0
+mypy==2.3.0
+pip-audit==2.10.1
+bandit==1.9.4

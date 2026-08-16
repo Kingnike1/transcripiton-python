@@ -1,13 +1,17 @@
 """Audio database model."""
 
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.time import utc_now
 from app.database.base import Base
+
+if TYPE_CHECKING:
+    from app.models.meeting import Meeting
+    from app.models.transcription import Transcription
 
 
 class Audio(Base):
@@ -43,4 +47,8 @@ class Audio(Base):
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     meeting: Mapped["Meeting"] = relationship("Meeting", back_populates="audios")
-    transcription = relationship("Transcription", back_populates="audio", uselist=False)
+    transcription: Mapped[Optional["Transcription"]] = relationship(
+        "Transcription",
+        back_populates="audio",
+        uselist=False,
+    )

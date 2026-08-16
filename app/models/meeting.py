@@ -1,7 +1,7 @@
 """Meeting database model."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -9,6 +9,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.enums import ProcessingStatus
 from app.core.time import utc_now
 from app.database.base import Base
+
+if TYPE_CHECKING:
+    from app.models.analysis import MeetingAnalysis
+    from app.models.audio import Audio
 
 
 class Meeting(Base):

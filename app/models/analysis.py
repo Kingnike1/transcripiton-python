@@ -1,12 +1,16 @@
 """Meeting analysis database model."""
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.time import utc_now
 from app.database.base import Base
+
+if TYPE_CHECKING:
+    from app.models.meeting import Meeting
 
 
 class MeetingAnalysis(Base):
