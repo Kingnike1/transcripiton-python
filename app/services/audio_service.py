@@ -8,6 +8,7 @@ from typing import BinaryIO, Optional
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core.enums import ProcessingStatus
 from app.database.unit_of_work import SqlAlchemyUnitOfWork
 from app.exceptions.audio import (
@@ -42,7 +43,10 @@ class AudioService:
         self.audios = self.uow.audios
         self.storage = storage or StorageService()
         self.validator = validator or AudioValidator()
-        self.inspector: AudioInspector = inspector or FFprobeAudioInspector()
+        self.inspector: AudioInspector = inspector or FFprobeAudioInspector(
+            binary=settings.audio.FFPROBE_BINARY,
+            timeout_seconds=settings.audio.FFPROBE_TIMEOUT_SECONDS,
+        )
         self.stager = stager or AudioUploadStager(self.storage)
 
     def upload(
