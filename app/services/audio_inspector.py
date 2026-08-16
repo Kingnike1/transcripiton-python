@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Optional
+from typing import Optional, Protocol
 
 from app.exceptions.audio import AudioFormatError, AudioInspectorUnavailableError
 
@@ -21,6 +21,14 @@ class AudioMediaMetadata:
     codec_name: Optional[str]
     channels: Optional[int]
     sample_rate: Optional[int]
+
+
+class AudioInspector(Protocol):
+    """Contract for media metadata inspection."""
+
+    def inspect(self, path: Path) -> AudioMediaMetadata:
+        """Inspect one staged audio file."""
+        ...
 
 
 class FFprobeAudioInspector:
@@ -88,19 +96,19 @@ class FFprobeAudioInspector:
         )
 
     @staticmethod
-    def _optional_float(value) -> Optional[float]:
+    def _optional_float(value: object) -> Optional[float]:
         if value in (None, "", "N/A"):
             return None
         try:
-            return float(value)
+            return float(value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return None
 
     @staticmethod
-    def _optional_int(value) -> Optional[int]:
+    def _optional_int(value: object) -> Optional[int]:
         if value in (None, "", "N/A"):
             return None
         try:
-            return int(value)
+            return int(value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return None
