@@ -7,11 +7,14 @@ import subprocess
 import sys
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+import main as main_module
 from app.config.application import ApplicationSettings
 from app.core.enums import ProcessingStatus
 from app.core.time import utc_now
+from app.database import session as session_module
 from app.database.meeting_repository import MeetingRepository
 from app.models.meeting import Meeting
 
@@ -41,6 +44,25 @@ def test_importing_main_does_not_create_database_schema(tmp_path):
     )
 
     assert not database_path.exists()
+
+
+def test_lifespan_disposes_engine_on_shutdown(monkeypatch):
+    """FastAPI shutdown must release pooled database resources."""
+    dispose_calls = []
+    monkeypatch.setattr(main_module.engine, "dispose", lambda: dispose_calls.append(True))
+
+    with TestClient(main_module.app):
+        pass
+
+    assert dispose_calls == [True]
+
+
+def test_reset_db_is_disabled_outside_local_environments(monkeypatch):
+    """The destructive reset helper must fail closed in staging/production."""
+    monkeypatch.setattr(session_module.settings.app, "ENVIRONMENT", "production")
+
+    with pytest.raises(RuntimeError, match="reset_db is disabled"):
+        session_module.reset_db()
 
 
 def test_production_rejects_debug_mode():
