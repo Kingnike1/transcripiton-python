@@ -32,6 +32,7 @@ def _meeting_with_audio(db_session) -> Meeting:
 def test_job_is_persistent_and_idempotent(db_session) -> None:
     meeting = _meeting_with_audio(db_session)
     service = PersistentJobService(db_session)
+    bind = db_session.get_bind()
 
     first = service.create_job(meeting.id, JobType.TRANSCRIBE, {"audio_id": 1})
     second = service.create_job(meeting.id, JobType.TRANSCRIBE, {"audio_id": 1})
@@ -39,7 +40,7 @@ def test_job_is_persistent_and_idempotent(db_session) -> None:
     assert second.id == first.id
     db_session.close()
 
-    SessionFactory = sessionmaker(bind=db_session.get_bind())
+    SessionFactory = sessionmaker(bind=bind)
     fresh = SessionFactory()
     try:
         persisted = PersistentJobService(fresh).get_job(first.id)
@@ -47,6 +48,19 @@ def test_job_is_persistent_and_idempotent(db_session) -> None:
         assert persisted.status == JobStatus.PENDING.value
     finally:
         fresh.close()
+
+
+def test_fresh_lease_prevents_second_worker_claim(db_session) -> None:
+    meeting = _meeting_with_audio(db_session)
+    service = PersistentJobService(db_session)
+    job = service.create_job(meeting.id, JobType.TRANSCRIBE)
+
+    first = service.claim_next("worker-a", lease_seconds=60, job_type=JobType.TRANSCRIBE)
+    second = service.claim_next("worker-b", lease_seconds=60, job_type=JobType.TRANSCRIBE)
+
+    assert first is not None
+    assert first.id == job.id
+    assert second is None
 
 
 def test_stale_running_job_can_be_reclaimed(db_session) -> None:
@@ -77,12 +91,15 @@ def test_retry_exhaustion_becomes_failed(db_session) -> None:
     assert service.claim_next("worker-a") is not None
     assert service.fail_or_retry(job.id, "worker-a", "temporary", retry_delay_seconds=0)
     db_session.expire_all()
-    assert service.get_job(job.id).status == JobStatus.RETRYING.value
+    retrying = service.get_job(job.id)
+    assert retrying is not None
+    assert retrying.status == JobStatus.RETRYING.value
 
     assert service.claim_next("worker-b") is not None
     assert service.fail_or_retry(job.id, "worker-b", "permanent", retry_delay_seconds=0)
     db_session.expire_all()
     failed = service.get_job(job.id)
+    assert failed is not None
     assert failed.status == JobStatus.FAILED.value
     assert failed.attempt == 2
 
@@ -105,9 +122,24 @@ def test_worker_completes_job_with_progress(db_session) -> None:
 
     db_session.expire_all()
     completed = PersistentJobService(db_session).get_job(job.id)
+    assert completed is not None
     assert completed.status == JobStatus.COMPLETED.value
     assert completed.progress == 100
     assert completed.result == {"ok": True}
+
+
+def test_worker_does_not_claim_unsupported_job(db_session) -> None:
+    meeting = _meeting_with_audio(db_session)
+    job = PersistentJobService(db_session).create_job(meeting.id, JobType.TRANSCRIBE)
+    SessionFactory = sessionmaker(bind=db_session.get_bind())
+
+    worker = JobWorker(handlers={}, session_factory=SessionFactory)
+    assert worker.run_once() is False
+
+    db_session.expire_all()
+    pending = PersistentJobService(db_session).get_job(job.id)
+    assert pending is not None
+    assert pending.status == JobStatus.PENDING.value
 
 
 def test_jobs_api_is_idempotent(client, db_session) -> None:
