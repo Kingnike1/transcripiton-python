@@ -7,6 +7,8 @@ from collections.abc import Callable
 from typing import Any, Optional
 from uuid import uuid4
 
+from sqlalchemy.orm import Session
+
 from app.core.enums import JobType
 from app.database.session import SessionLocal
 from app.models.processing_job import ProcessingJob
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[int], None]
 JobHandler = Callable[[ProcessingJob, ProgressCallback], Optional[dict[str, Any]]]
+SessionFactory = Callable[[], Session]
 
 
 class JobWorker:
@@ -27,18 +30,20 @@ class JobWorker:
         worker_id: Optional[str] = None,
         lease_seconds: int = 60,
         retry_delay_seconds: int = 5,
+        session_factory: SessionFactory = SessionLocal,
     ) -> None:
         self.handlers = handlers or {}
         self.worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:8]}"
         self.lease_seconds = max(10, lease_seconds)
         self.retry_delay_seconds = max(0, retry_delay_seconds)
+        self.session_factory = session_factory
 
     def register_handler(self, job_type: JobType, handler: JobHandler) -> None:
         self.handlers[job_type] = handler
 
     def run_once(self) -> bool:
         """Claim and process at most one job. Return whether work was claimed."""
-        session = SessionLocal()
+        session = self.session_factory()
         try:
             service = PersistentJobService(session)
             job = service.claim_next(self.worker_id, lease_seconds=self.lease_seconds)
