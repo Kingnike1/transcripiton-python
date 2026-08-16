@@ -1,6 +1,6 @@
 # Technical Decisions Register
 
-Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP. Decisões arquiteturais relevantes possuem ADR dedicado em `docs/adr/`; o histórico completo permanece preservado no Git.
+Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP. ADRs dedicados ficam em `docs/adr/`.
 
 ## Decisões vigentes
 
@@ -16,7 +16,7 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-008 | Repository Pattern | Accepted |
 | TD-009 | Service Layer | Accepted |
 | TD-010 | Interfaces para providers de IA | Accepted |
-| TD-011 | BackgroundTasks/fila em memória | Deprecated — será superseded na Sprint 6B |
+| TD-011 | BackgroundTasks/fila em memória | **Superseded por TD-024** |
 | TD-012 | Storage local no MVP | Accepted |
 | TD-013 | Arquitetura preparada para múltiplos providers | Accepted |
 | TD-014 | KISS e YAGNI | Accepted |
@@ -25,123 +25,87 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-017 | Alembic é a fonte oficial de evolução do schema | Accepted |
 | TD-018 | Upload usa staging em chunks e ffprobe | Accepted |
 | TD-019 | Uma reunião possui no máximo um áudio ativo | Accepted |
-| TD-020 | Erros públicos são sanitizados e correlacionados por request ID | Accepted |
-| TD-021 | Lifecycle não altera schema; runtime é validado por ambiente | Accepted |
-| TD-022 | CI/Quality bloqueiam regressões e runtime mantém superfície mínima | Accepted |
-| TD-023 | Documentação separa current, roadmap e archive | Accepted |
+| TD-020 | Erros públicos são sanitizados/request ID | Accepted |
+| TD-021 | Lifecycle não altera schema; runtime validado | Accepted |
+| TD-022 | CI/Quality bloqueiam regressões | Accepted |
+| TD-023 | Documentação separa current/roadmap/archive | Accepted |
+| TD-024 | Banco é a fila durável inicial; worker é processo separado | Accepted |
 
----
+## TD-016 — Ownership transacional
 
-## TD-016 — Service Layer é proprietária das transações
-
-**Data:** 2026-08-06  
 **ADR:** `docs/adr/ADR-017-service-layer-transaction-ownership.md`
 
-Repositories usam query/add/flush e não executam `commit()` ou `rollback()`. `SqlAlchemyUnitOfWork` coordena a Session compartilhada pelo caso de uso.
+Repositories usam query/add/flush. `SqlAlchemyUnitOfWork` coordena commit/rollback no Service Layer.
 
----
+## TD-017 — Alembic
 
-## TD-017 — Alembic é a fonte oficial de evolução do schema
-
-**Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-018-alembic-schema-baseline.md`
 
-Bancos novos usam `alembic upgrade head`. Bancos legados devem ser marcados na revision que realmente representam e avançados pelas revisions posteriores. Toda mudança de schema deve possuir migration revisada.
+Alembic é a fonte oficial do schema e migrations são externas ao processo web.
 
----
+## TD-018 — Upload streaming
 
-## TD-018 — Upload usa staging em chunks e ffprobe
-
-**Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-019-streaming-audio-staging.md`
 
-`UploadFile.file` é processado via threadpool, escrito em chunks de 1 MiB em staging temporário, validado e inspecionado com `ffprobe`, depois promovido atomicamente. O limite é aplicado durante a escrita e falhas antes do commit acionam limpeza/compensação.
+Upload usa chunks, staging, validação, `ffprobe` e promoção atômica.
 
----
+## TD-019 — Um áudio ativo
 
-## TD-019 — Uma reunião possui no máximo um áudio ativo
-
-**Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-020-one-active-audio-per-meeting.md`
 
-Uma reunião pode possuir no máximo um `Audio` com `deleted_at IS NULL`. O índice único parcial `uq_audios_active_meeting` é a autoridade final contra concorrência; o pre-check do service continua como otimização. A migration recusa dados legados conflitantes sem apagá-los automaticamente.
+Índice único parcial é a defesa final contra concorrência.
 
-Idempotência HTTP global continua adiada até existir identidade/tenant. A Sprint 6B tratará idempotência de jobs.
+## TD-020 — Contrato de erro público
 
----
-
-## TD-020 — Erros públicos são sanitizados e correlacionados por request ID
-
-**Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-021-public-error-contract.md`
 
-Toda resposta de erro normalizada contém `status`, `code`, `detail` e `request_id`; `X-Request-ID` acompanha a resposta. Detalhes técnicos permanecem apenas nos logs. `AudioResponse` não expõe `file_path`.
+Erros públicos são sanitizados e correlacionados por request ID; paths/SQL/secrets ficam internos.
 
----
+## TD-021 — Lifecycle/configuração
 
-## TD-021 — Lifecycle não altera schema; runtime é validado por ambiente
-
-**Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-022-lifecycle-runtime-configuration.md`
 
-- o processo web não cria schema nem executa migrations;
-- Alembic é aplicado explicitamente antes do app;
-- FastAPI lifespan gerencia recursos e descarta o engine no shutdown;
-- `reset_db()` é restrito a development/test;
-- settings usam Pydantic V2;
-- staging/produção rejeitam debug e segredo fraco;
-- `utc_now()` é o relógio comum;
-- `get_stale_processing(minutes)` respeita o limiar.
+Web não cria schema; settings de ambientes não locais falham fechadas quando inseguras; UTC é o relógio comum.
 
----
+## TD-022 — Quality gates
 
-## TD-022 — CI/Quality bloqueiam regressões e runtime mantém superfície mínima
-
-**Status:** Accepted  
-**Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-023-quality-gates-runtime-dependencies.md`
 
-- Python 3.11 é a baseline mínima e Python 3.12 é compatibilidade obrigatória;
-- `CI` executa a suíte completa com cobertura >=80%;
-- `Quality` executa Ruff (`F`/`E9`), mypy, migrations, Bandit e `pip-audit`;
-- checks são bloqueantes;
-- requirements de runtime e desenvolvimento são separados;
-- dependências não utilizadas não permanecem no runtime;
-- upgrades de segurança são direcionados e validados;
-- bind padrão é `127.0.0.1`;
-- GitFlow adaptado e Conventional Commits são a política oficial.
+Python 3.11/3.12, pytest/cobertura, Ruff, mypy, migration integrity, Bandit e `pip-audit` são gates. Runtime contém somente dependências ativas.
 
-A auditoria de fechamento da P0.7 retornou **No known vulnerabilities found** para o runtime.
+## TD-023 — Taxonomia documental
 
-A proteção administrativa da `main` continua desejada, mas a integração disponível respondeu 403 ao endpoint de branch protection; não considerar a branch protegida até esse controle ser aplicado externamente.
+**ADR:** `docs/adr/ADR-024-documentation-taxonomy.md`
 
----
+`docs/current/` é comportamento real; `roadmap/` é planejado; `archive/` é histórico; código/migrations/testes/CI têm autoridade superior.
 
-## TD-023 — Documentação separa current, roadmap e archive
+## TD-024 — Banco como fila durável inicial
 
 **Status:** Accepted  
 **Data:** 2026-08-16  
-**ADR:** `docs/adr/ADR-024-documentation-taxonomy.md`
+**ADR:** `docs/adr/ADR-025-durable-database-jobs-worker.md`
 
 ### Decisão
 
-- `docs/current/` descreve exclusivamente comportamento implementado;
-- `docs/roadmap/` descreve futuro explicitamente planejado;
-- `docs/archive/` mantém catálogo/contexto de materiais superseded;
-- `docs/adr/` mantém decisões arquiteturais;
-- `docs/06_BACKLOG.md` continua como fila operacional;
-- `docs/README.md` é o mapa documental.
+- `ProcessingJob` persiste estado/progresso/tentativas/payload/result/erro;
+- índice parcial impede job ativo duplicado por reunião/tipo;
+- criação é idempotente enquanto um job ativo existe;
+- worker separado do FastAPI reclama jobs por update condicionado;
+- lease/heartbeat permitem recuperação de job abandonado;
+- retry usa `available_at` e `max_attempts`;
+- worker só reclama tipos com handler registrado;
+- SQLite/database polling é suficiente para o estágio pessoal/local.
 
-### Ordem de autoridade
+### Alternativas adiadas
 
-Código/migrations/testes/CI prevalecem, seguidos por governança/estado/decisões, depois `docs/current/`. Roadmap e archive não podem ser usados como evidência de funcionalidade existente.
+Redis, Celery, RQ e Dramatiq só serão considerados com evidência de throughput/contenção que justifique infraestrutura adicional.
 
-### Consequência
+### Supersession
 
-Caminhos antigos que misturavam especificação atual, roadmap e histórico são removidos depois que referências são atualizadas, evitando duas fontes concorrentes de verdade.
+TD-011 (BackgroundTasks/fila em memória) está superseded. A implementação antiga e seus testes foram removidos na Sprint 6B.
 
 ---
 
-**Document Version:** 1.8  
+**Document Version:** 1.9  
 **Last Updated:** 2026-08-16  
 **Status:** Active
