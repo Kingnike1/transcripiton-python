@@ -30,10 +30,9 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def reset_db() -> None:
-    """Recreate the schema explicitly for local/test tooling only.
+    """Recreate the schema explicitly for development/test tooling only."""
+    if settings.ENVIRONMENT not in {"development", "test"}:
+        raise RuntimeError("reset_db is disabled outside development and test")
 
-    Production and normal application startup must use Alembic migrations and
-    must never call this helper.
-    """
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
