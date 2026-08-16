@@ -1,0 +1,52 @@
+name: Quality
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "agent/**"
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff lint
+        run: ruff check app tests main.py
+      - name: Type check
+        run: mypy app main.py
+      - name: Migration integrity
+        run: pytest -q tests/test_migrations.py
+      - name: Static security scan
+        run: |
+          bandit -q -r app -ll
+          bandit -q main.py -ll
+      - name: Dependency vulnerability audit
+        continue-on-error: true
+        run: pip-audit -r requirements.txt
+
+  python-312:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run compatibility tests
+        run: pytest --cov=app --cov-fail-under=80 tests/
