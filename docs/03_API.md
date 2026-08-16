@@ -1,618 +1,265 @@
-# 03_API.md
+# API atual do AMIP
 
-## API Specification
+## Escopo deste documento
 
-### API Overview
+Este arquivo descreve **somente endpoints implementados no código atual**. Funcionalidades futuras como transcrição, diarização, análise por LLM, busca e exportação permanecem no backlog e não devem ser apresentadas aqui como disponíveis.
 
-The AMIP API is built with FastAPI and provides RESTful endpoints for managing meetings, audio, transcriptions, and analysis.
+Base local padrão:
 
-### Base URL
-
-```
-http://localhost:8000/api
+```text
+http://localhost:8000
 ```
 
-### Response Format
-
-All responses are JSON with consistent structure:
-
-**Success Response**:
-```json
-{
-  "status": "success",
-  "data": { /* response data */ },
-  "message": "Operation successful"
-}
-```
-
-**Error Response**:
-```json
-{
-  "status": "error",
-  "detail": "Error message",
-  "code": "ERROR_CODE"
-}
-```
-
-### Status Codes
-
-| Code | Meaning |
-|------|---------|
-| 200 | OK - Request successful |
-| 201 | Created - Resource created |
-| 400 | Bad Request - Invalid input |
-| 404 | Not Found - Resource not found |
-| 409 | Conflict - Resource already exists |
-| 500 | Server Error - Internal error |
-
-### Authentication
-
-Currently no authentication required. Future versions will implement JWT-based auth.
+A documentação OpenAPI do FastAPI continua sendo a referência executável do contrato.
 
 ---
 
-## Endpoints
+## Contrato de erro público
 
-### Meetings
+A partir da Stack P0.5, respostas de erro normalizadas usam:
 
-#### List Meetings
-
+```json
+{
+  "status": "error",
+  "code": "NOT_FOUND",
+  "detail": "Meeting not found",
+  "request_id": "<uuid-gerado-pelo-servidor>"
+}
 ```
-GET /api/meetings
+
+A resposta inclui também:
+
+```text
+X-Request-ID: <mesmo UUID do corpo>
 ```
 
-**Query Parameters**:
-- `skip` (int): Number of records to skip (default: 0)
-- `limit` (int): Number of records to return (default: 10)
-- `search` (str): Search term for title/description
+Regras:
 
-**Response**:
+- detalhes internos de exceção não são retornados ao cliente;
+- SQL, caminhos internos, secrets e stack traces permanecem apenas nos logs;
+- `RequestValidationError` não ecoa o payload recebido;
+- erros HTTP explícitos são normalizados para o mesmo envelope;
+- o servidor gera o `request_id`; valores enviados pelo cliente não são tratados como identificador confiável.
+
+Códigos estáveis atualmente usados incluem:
+
+| HTTP | `code` típico |
+|---|---|
+| 400 | `BAD_REQUEST` / `AUDIO_UPLOAD_ERROR` / `VALIDATION_ERROR` |
+| 404 | `NOT_FOUND` |
+| 409 | `CONFLICT` |
+| 413 | `PAYLOAD_TOO_LARGE` |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` |
+| 422 | `REQUEST_VALIDATION_ERROR` |
+| 500 | `INTERNAL_ERROR`, `DATABASE_ERROR`, `AUDIO_ERROR`, etc. |
+| 503 | `SERVICE_UNAVAILABLE` |
+
+---
+
+# Reuniões
+
+## Listar reuniões
+
+```http
+GET /api/meetings?skip=0&limit=10&search=termo
+```
+
+Parâmetros:
+
+- `skip`: inteiro >= 0, padrão 0;
+- `limit`: inteiro entre 1 e 100, padrão 10;
+- `search`: filtro opcional por título/descrição.
+
+Resposta:
+
 ```json
 {
   "status": "success",
   "data": [
     {
       "id": 1,
-      "title": "Q3 Planning Meeting",
-      "description": "Quarterly planning session",
-      "created_at": "2026-08-03T10:00:00",
-      "updated_at": "2026-08-03T10:00:00"
+      "title": "Reunião semanal",
+      "description": "Acompanhamento do projeto",
+      "status": "CREATED",
+      "created_at": "2026-08-16T10:00:00Z",
+      "updated_at": "2026-08-16T10:00:00Z"
     }
   ],
-  "total": 1
+  "total": 1,
+  "skip": 0,
+  "limit": 10
 }
 ```
 
-#### Get Meeting
+## Consultar reunião
 
-```
+```http
 GET /api/meetings/{meeting_id}
 ```
 
-**Response**:
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "title": "Q3 Planning Meeting",
-    "description": "Quarterly planning session",
-    "created_at": "2026-08-03T10:00:00",
-    "updated_at": "2026-08-03T10:00:00",
-    "audios": [
-      {
-        "id": 1,
-        "filename": "meeting.mp3",
-        "duration": 3600,
-        "created_at": "2026-08-03T10:00:00"
-      }
-    ],
-    "analysis": {
-      "summary": "Meeting summary...",
-      "action_items": ["Item 1", "Item 2"]
-    }
-  }
-}
-```
+Retorna `MeetingResponse`. Reunião inexistente retorna 404 no envelope padrão.
 
-#### Create Meeting
+## Criar reunião
 
-```
+```http
 POST /api/meetings
 Content-Type: application/json
 ```
 
-**Request Body**:
 ```json
 {
-  "title": "Q3 Planning Meeting",
-  "description": "Quarterly planning session"
+  "title": "Reunião semanal",
+  "description": "Acompanhamento do projeto"
 }
 ```
 
-**Response** (201 Created):
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "title": "Q3 Planning Meeting",
-    "description": "Quarterly planning session",
-    "created_at": "2026-08-03T10:00:00"
-  }
-}
-```
+Sucesso: HTTP 201 com `MeetingResponse`.
 
-#### Update Meeting
+## Atualizar reunião
 
-```
+```http
 PUT /api/meetings/{meeting_id}
 Content-Type: application/json
 ```
 
-**Request Body**:
+Campos são opcionais:
+
 ```json
 {
-  "title": "Updated Title",
-  "description": "Updated description"
+  "title": "Novo título",
+  "description": "Nova descrição"
 }
 ```
 
-**Response**:
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "title": "Updated Title",
-    "description": "Updated description",
-    "updated_at": "2026-08-03T11:00:00"
-  }
-}
-```
+## Remover reunião
 
-#### Delete Meeting
-
-```
+```http
 DELETE /api/meetings/{meeting_id}
 ```
 
-**Response** (204 No Content):
-```
-No content
-```
+A operação é soft delete. Sucesso: HTTP 204.
 
 ---
 
-### Audio
+# Áudio da reunião
 
-#### Upload Audio
+## Upload
 
-```
-POST /api/audio/upload
+```http
+POST /api/meetings/{meeting_id}/audio
 Content-Type: multipart/form-data
 ```
 
-**Form Parameters**:
-- `meeting_id` (int): Meeting ID
-- `file` (file): Audio file (mp3, wav, m4a, etc.)
+Campo multipart:
 
-**Response** (201 Created):
+```text
+file=<arquivo>
+```
+
+Formatos aceitos atualmente:
+
+- `.mp3`;
+- `.wav`;
+- `.m4a`;
+- `.ogg`;
+- `.webm`.
+
+Fluxo interno atual:
+
+```text
+UploadFile.file
+  ↓ chunks de 1 MiB
+storage/temp
+  ↓ validação + ffprobe
+promoção atômica
+  ↓
+Audio + Meeting status em uma Unit of Work
+```
+
+O processo:
+
+- não usa `await file.read()` para materializar o upload inteiro em RAM;
+- aplica limite durante a escrita;
+- valida extensão, MIME, assinatura e presença de stream de áudio;
+- usa `ffprobe` para duração, codec, canais e sample rate;
+- mantém no máximo um áudio ativo por reunião;
+- compensa o arquivo quando a transação de banco falha.
+
+Sucesso: HTTP 201.
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "id": 1,
+  "meeting_id": 1,
+  "audio": {
+    "id": 5,
     "meeting_id": 1,
-    "filename": "meeting.mp3",
-    "duration": 3600,
-    "file_size": 45000000,
-    "mime_type": "audio/mpeg",
-    "created_at": "2026-08-03T10:00:00"
-  }
+    "filename": "meeting.wav",
+    "file_size": 123456,
+    "mime_type": "audio/wav",
+    "duration": 125,
+    "codec_name": "pcm_s16le",
+    "channels": 1,
+    "sample_rate": 16000,
+    "created_at": "2026-08-16T10:10:00Z"
+  },
+  "status": "AUDIO_UPLOADED"
 }
 ```
 
-#### Get Audio
+**`file_path` não faz parte do contrato público.** O caminho físico/relativo permanece detalhe interno de storage.
 
-```
-GET /api/audio/{audio_id}
-```
+Possíveis respostas:
 
-**Response**:
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "meeting_id": 1,
-    "filename": "meeting.mp3",
-    "duration": 3600,
-    "file_size": 45000000,
-    "mime_type": "audio/mpeg",
-    "created_at": "2026-08-03T10:00:00"
-  }
-}
+- 404: reunião não encontrada;
+- 409: reunião já possui áudio ativo;
+- 400: arquivo inválido/formato incompatível;
+- 503: `ffprobe` indisponível no servidor.
+
+## Consultar metadados do áudio
+
+```http
+GET /api/meetings/{meeting_id}/audio
 ```
 
-#### Delete Audio
-
-```
-DELETE /api/audio/{audio_id}
-```
-
-**Response** (204 No Content):
-```
-No content
-```
+Retorna `AudioResponse`, sem `file_path`.
 
 ---
 
-### Transcription
+# Health check
 
-#### Start Transcription
-
-```
-POST /api/transcription/start
-Content-Type: application/json
+```http
+GET /health
 ```
 
-**Request Body**:
+Resposta atual:
+
 ```json
 {
-  "audio_id": 1
+  "status": "healthy",
+  "version": "0.2.0"
 }
 ```
 
-**Response**:
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "audio_id": 1,
-    "status": "processing",
-    "created_at": "2026-08-03T10:00:00"
-  }
-}
-```
-
-#### Get Transcription
-
-```
-GET /api/transcription/{transcription_id}
-```
-
-**Response**:
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "audio_id": 1,
-    "text": "Full transcribed text...",
-    "language": "en",
-    "created_at": "2026-08-03T10:00:00"
-  }
-}
-```
-
-#### Get Transcription by Audio
-
-```
-GET /api/audio/{audio_id}/transcription
-```
-
-**Response**:
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "audio_id": 1,
-    "text": "Full transcribed text...",
-    "language": "en",
-    "created_at": "2026-08-03T10:00:00"
-  }
-}
-```
+O endpoint é atualmente apenas um liveness check. Readiness e verificação de dependências ainda serão tratados em stack posterior.
 
 ---
 
-### Speaker Identification
+# Não implementado ainda
 
-#### Get Speaker Segments
+Os seguintes contratos **não fazem parte da API operacional atual**:
 
-```
-GET /api/transcription/{transcription_id}/speakers
-```
+- início/consulta de transcrição;
+- diarização/speaker identification;
+- análise por LLM;
+- busca textual avançada;
+- exportação;
+- autenticação/autorização;
+- retry/cancelamento de jobs persistentes.
 
-**Response**:
-```json
-{
-  "status": "success",
-  "data": [
-    {
-      "id": 1,
-      "speaker_label": "Speaker 1",
-      "start_time": 0.0,
-      "end_time": 15.5,
-      "text": "Good morning everyone...",
-      "confidence": 0.95
-    },
-    {
-      "id": 2,
-      "speaker_label": "Speaker 2",
-      "start_time": 15.5,
-      "end_time": 30.2,
-      "text": "Thank you for joining...",
-      "confidence": 0.92
-    }
-  ]
-}
-```
+Esses itens permanecem no `docs/06_BACKLOG.md` e deverão entrar neste documento somente quando implementados.
 
 ---
 
-### AI Analysis
-
-#### Start Analysis
-
-```
-POST /api/analysis/start
-Content-Type: application/json
-```
-
-**Request Body**:
-```json
-{
-  "meeting_id": 1
-}
-```
-
-**Response**:
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "meeting_id": 1,
-    "status": "processing",
-    "created_at": "2026-08-03T10:00:00"
-  }
-}
-```
-
-#### Get Analysis
-
-```
-GET /api/analysis/{meeting_id}
-```
-
-**Response**:
-```json
-{
-  "status": "success",
-  "data": {
-    "id": 1,
-    "meeting_id": 1,
-    "summary": "This meeting discussed Q3 objectives and resource allocation...",
-    "action_items": [
-      "Complete project proposal by Friday",
-      "Schedule follow-up meeting with stakeholders",
-      "Review budget allocation"
-    ],
-    "decisions": [
-      "Approved Q3 budget increase",
-      "Decided to hire 2 additional team members"
-    ],
-    "risks": [
-      "Timeline may be tight for project delivery",
-      "Resource constraints in Q4"
-    ],
-    "open_questions": [
-      "How will we handle resource conflicts?",
-      "What's the contingency plan if timeline slips?"
-    ],
-    "follow_up_tasks": [
-      "Send meeting minutes to all attendees",
-      "Update project timeline in system"
-    ],
-    "created_at": "2026-08-03T10:00:00"
-  }
-}
-```
-
----
-
-### Search
-
-#### Search Meetings
-
-```
-GET /api/search/meetings
-```
-
-**Query Parameters**:
-- `q` (str): Search query (searches title, description, transcription text)
-- `skip` (int): Number of records to skip (default: 0)
-- `limit` (int): Number of records to return (default: 10)
-
-**Response**:
-```json
-{
-  "status": "success",
-  "data": [
-    {
-      "id": 1,
-      "title": "Q3 Planning Meeting",
-      "description": "Quarterly planning session",
-      "created_at": "2026-08-03T10:00:00",
-      "relevance_score": 0.95
-    }
-  ],
-  "total": 1
-}
-```
-
-#### Search Transcriptions
-
-```
-GET /api/search/transcriptions
-```
-
-**Query Parameters**:
-- `q` (str): Search query
-- `skip` (int): Number of records to skip (default: 0)
-- `limit` (int): Number of records to return (default: 10)
-
-**Response**:
-```json
-{
-  "status": "success",
-  "data": [
-    {
-      "id": 1,
-      "audio_id": 1,
-      "meeting_id": 1,
-      "text": "...relevant text snippet...",
-      "relevance_score": 0.92
-    }
-  ],
-  "total": 1
-}
-```
-
----
-
-### Export
-
-#### Export Meeting
-
-```
-GET /api/export/meeting/{meeting_id}
-```
-
-**Query Parameters**:
-- `format` (str): Export format (markdown, pdf, txt, docx)
-
-**Response**:
-- Format: Markdown - Returns markdown content
-- Format: PDF - Returns PDF file
-- Format: TXT - Returns text file
-- Format: DOCX - Returns Word document
-
-**Example Markdown Export**:
-```markdown
-# Q3 Planning Meeting
-
-**Date**: 2026-08-03  
-**Duration**: 1 hour
-
-## Summary
-
-This meeting discussed Q3 objectives...
-
-## Action Items
-
-- Complete project proposal by Friday
-- Schedule follow-up meeting with stakeholders
-
-## Decisions
-
-- Approved Q3 budget increase
-- Decided to hire 2 additional team members
-
-## Risks
-
-- Timeline may be tight for project delivery
-```
-
----
-
-## Error Handling
-
-### Common Error Responses
-
-#### Not Found
-
-```json
-{
-  "status": "error",
-  "detail": "Meeting not found",
-  "code": "MEETING_NOT_FOUND"
-}
-```
-
-#### Invalid Input
-
-```json
-{
-  "status": "error",
-  "detail": "Invalid meeting title: title must be at least 3 characters",
-  "code": "INVALID_INPUT"
-}
-```
-
-#### Processing Error
-
-```json
-{
-  "status": "error",
-  "detail": "Transcription failed: unable to process audio file",
-  "code": "TRANSCRIPTION_ERROR"
-}
-```
-
----
-
-## Rate Limiting
-
-Currently no rate limiting. Future versions will implement:
-- 100 requests per minute per IP
-- 1000 requests per hour per IP
-
----
-
-## Pagination
-
-All list endpoints support pagination:
-
-```
-GET /api/meetings?skip=0&limit=10
-```
-
-**Response includes**:
-- `data`: Array of records
-- `total`: Total number of records
-- `skip`: Number of records skipped
-- `limit`: Limit used
-
----
-
-## Filtering
-
-Supported filters vary by endpoint:
-
-**Meetings**:
-- `search`: Search in title/description
-- `created_after`: Filter by creation date
-- `created_before`: Filter by creation date
-
-**Transcriptions**:
-- `language`: Filter by language
-- `meeting_id`: Filter by meeting
-
----
-
-## Versioning
-
-Current API version: **v1**
-
-Future versions will be available at `/api/v2`, `/api/v3`, etc.
-
----
-
-**Document Version**: 1.0  
-**Last Updated**: 2026-08-03  
-**Status**: Active
+**Document Version:** 2.0  
+**Last Updated:** 2026-08-16  
+**Status:** Active
