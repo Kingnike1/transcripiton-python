@@ -1,73 +1,101 @@
 # PROJECT_STATE.MD
 
-## Current Project Status
+## Estado Atual do Projeto
 
-**Project:** AI Meeting Intelligence Platform (AMIP)  
-**Last Updated:** 2026-08-04  
-**Current Sprint:** Sprint 5 — Upload e Armazenamento Seguro de Áudio  
-**Branch:** `agent/sprint-5-audio-upload`  
-**Status:** Implementada; aguardando validação do CI e merge
+**Projeto:** AI Meeting Intelligence Platform (AMIP)  
+**Última atualização:** 2026-08-06  
+**Sprint atual:** Sprint 6A — Estabilização do Núcleo  
+**Stack em execução:** P0.1 — Transações e Unit of Work  
+**Branch:** `agent/stack-p0-1-transaction-uow`  
+**Branch de integração:** `develop`  
+**PR:** #2 — validação temporária contra `main` para acionar o CI legado  
+**Status:** Implementação concluída; documentação e quality gate em andamento
 
-## Fases
+## Baseline antes da Stack P0.1
 
-| Fase | Status | Observação |
+- `main`: `017dc2127f4dd179c08a26308355fbc1b8ce066f`
+- Sprint 5 integrada na `main`.
+- Último CI da `main`: verde.
+- Baseline do CI: 88 testes aprovados e 85,05% de cobertura.
+- `develop` foi criada a partir da `main` para iniciar o GitFlow adaptado.
+
+## Objetivo da Stack P0.1
+
+Padronizar ownership transacional para que a camada de serviço coordene `commit` e `rollback`, repositories permaneçam transaction-neutral e transições de estado sejam duráveis.
+
+## Entregas P0.1
+
+- [x] Criar `SqlAlchemyUnitOfWork`.
+- [x] Definir Service Layer como proprietária das transações.
+- [x] Remover `commit()` de `MeetingRepository`.
+- [x] Fazer repositories de escrita usarem `flush()` sem commit.
+- [x] Migrar `MeetingService` para Unit of Work.
+- [x] Persistir `MeetingService.transition_status()` corretamente.
+- [x] Migrar `AudioService` para a mesma política transacional.
+- [x] Evitar compensação destrutiva do arquivo após commit já confirmado.
+- [x] Adicionar testes de commit, rollback e persistência em nova sessão.
+- [x] Adicionar teste de rollback/compensação quando o commit do áudio falha.
+- [x] Registrar ADR-017.
+- [ ] GitHub Actions verde no head final.
+- [ ] Retarget do PR #2 para `develop`.
+- [ ] Merge em `develop` após quality gate.
+
+## Política Transacional Vigente
+
+```text
+API
+  ↓
+Application Service
+  ↓ define commit/rollback
+SqlAlchemyUnitOfWork
+  ↓
+Repositories (query/add/flush)
+  ↓
+SQLAlchemy Session
+```
+
+Repositories não devem executar `commit()` ou `rollback()`.
+
+## Itens Explicitamente Fora do Escopo desta Stack
+
+- Alembic e migrations (P0.2).
+- Upload em streaming (P0.3).
+- Concorrência/constraint de áudio (P0.4).
+- Sanitização global de erros (P0.5).
+- Lifespan/Pydantic/timestamps (P0.6).
+- Expansão do CI e branch protection (P0.7).
+- Correção de `get_stale_processing(minutes)` — permanece registrada como bug para estabilização.
+- Jobs persistentes e Whisper.
+
+## Riscos e Dívidas Abertas
+
+| Item | Prioridade | Estado |
 |---|---|---|
-| Fundação | Concluída | FastAPI, banco, testes e UI básica |
-| Arquitetura central | Concluída | Repository, Service Layer, pipeline e jobs |
-| Refatoração arquitetural | Concluída | Config, exceções, logging e providers |
-| Módulo de áudio | Em andamento | Upload, validação, storage e metadados implementados; UI e microfone pendentes |
-| Transcrição | Não iniciada | Próxima fase após jobs persistentes |
-| Diarização | Não iniciada | Depende de transcrição |
-| Análise por IA | Não iniciada | Depende de transcrição/diarização |
-| Busca | Não iniciada | Planejada |
-| Exportação | Não iniciada | Planejada |
+| Alembic ainda não operacional | Emergencial | P0.2 |
+| Upload lê arquivo inteiro em memória | Emergencial | P0.3 |
+| Regra de um áudio não possui constraint de banco | Emergencial | P0.4 |
+| Handler genérico expõe detalhes internos | Alta | P0.5 |
+| `init_db()` ocorre durante importação | Média/Alta | P0.6 |
+| `get_stale_processing(minutes)` ignora `minutes` | Alta | Pendente na estabilização |
+| `main` sem proteção obrigatória | Alta | P0.7 |
+| Fila de jobs em memória | Crítica antes do Whisper | Sprint 6B |
 
-## Sprint 5 — Entregas
+## Próxima Stack Recomendada
 
-- [x] Endpoint `POST /api/meetings/{meeting_id}/audio`
-- [x] Endpoint `GET /api/meetings/{meeting_id}/audio`
-- [x] `AudioRepository`
-- [x] `AudioService` com transação e compensação de arquivo
-- [x] `AudioValidator` para nome, extensão, MIME, tamanho e assinatura binária
-- [x] Persistência de metadados no modelo `Audio`
-- [x] Transição `CREATED/RECORDING -> AUDIO_UPLOADED`
-- [x] Rejeição de upload duplicado
-- [x] Testes unitários e de integração
-- [x] Workflow de CI com cobertura mínima de 80%
-- [x] Documentação e ADR atualizados
-- [ ] UI de upload
-- [ ] Gravação por microfone
-- [ ] Extração de duração do áudio
+**P0.2 — Migrations com Alembic**
 
-## Decisões Técnicas
-
-- O `AudioService` controla a unidade de trabalho.
-- Repositories não executam commit no fluxo de upload.
-- Arquivos são armazenados com UUID fora de `static/`.
-- Falhas de banco removem o arquivo salvo.
-- Whisper permanece fora desta Sprint.
-
-## Riscos e Dívida Técnica
-
-| Item | Prioridade | Tratamento |
-|---|---|---|
-| `init_db()` ainda ocorre durante importação | Média | Migrar para lifespan do FastAPI |
-| Fila de jobs em memória | Alta antes do Whisper | Implementar job persistente na próxima Sprint |
-| Handler genérico inclui detalhes internos | Alta | Remover detalhes da resposta antes de produção |
-| Validação binária é intencionalmente básica | Média | Avaliar `ffprobe`/biblioteca especializada futuramente |
-| SQLite limita concorrência | Média | Manter no MVP e planejar PostgreSQL |
-
-## Próxima Sprint Recomendada
-
-**Sprint 6 — Jobs persistentes e acompanhamento de processamento**
-
-Objetivo: criar um job transacional após upload, persistir status/progresso/erro e fornecer endpoint de consulta. Isso prepara a integração do Whisper sem bloquear workers HTTP.
+A próxima alteração estrutural será criar uma baseline de schema e tornar mudanças de banco versionáveis antes de adicionar constraints e jobs persistentes.
 
 ## Quality Gate
 
-- Todos os testes devem passar no GitHub Actions.
-- Cobertura deve permanecer em pelo menos 80%.
-- A branch só deve ser integrada após CI verde.
+A Stack P0.1 só será considerada concluída após:
 
-**Document Version:** 1.4  
+- todos os testes passarem no GitHub Actions;
+- cobertura permanecer em pelo menos 80%;
+- revisão do diff final;
+- documentação sincronizada;
+- PR direcionado para `develop`;
+- merge sem ignorar falhas de CI.
+
+**Document Version:** 1.5  
 **Status:** Active

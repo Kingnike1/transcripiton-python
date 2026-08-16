@@ -1,11 +1,10 @@
 """Tests for secure audio upload use cases."""
 
-from pathlib import Path
-
 import pytest
 
 from app.core.enums import ProcessingStatus
 from app.exceptions.audio import AudioAlreadyExistsError, AudioFormatError, AudioUploadError
+from app.models.audio import Audio
 from app.schemas.meeting import MeetingCreate
 from app.services.audio_service import AudioService
 from app.services.audio_validator import AudioValidator
@@ -69,4 +68,25 @@ def test_database_failure_removes_stored_file(db_session, tmp_path, monkeypatch)
     with pytest.raises(RuntimeError):
         service.upload(meeting.id, "meeting.wav", "audio/wav", wav_bytes())
 
+    assert list((tmp_path / "audio" / str(meeting.id)).glob("*")) == []
+
+
+def test_commit_failure_rolls_back_database_and_removes_file(
+    db_session, tmp_path, monkeypatch
+):
+    """A failed unit-of-work commit must rollback DB state and compensate storage."""
+    meeting = create_meeting(db_session)
+    service = AudioService(db_session, storage=StorageService(str(tmp_path)))
+
+    def fail_commit() -> None:
+        raise RuntimeError("commit unavailable")
+
+    monkeypatch.setattr(service.uow, "commit", fail_commit)
+
+    with pytest.raises(RuntimeError, match="commit unavailable"):
+        service.upload(meeting.id, "meeting.wav", "audio/wav", wav_bytes())
+
+    assert db_session.query(Audio).count() == 0
+    db_session.refresh(meeting)
+    assert meeting.status == ProcessingStatus.CREATED.value
     assert list((tmp_path / "audio" / str(meeting.id)).glob("*")) == []
