@@ -156,29 +156,37 @@ A camada de serviço possui as fronteiras transacionais. Repositories usam query
 **Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-018-alembic-schema-baseline.md`
 
-### Contexto
-
-Alembic já era exigido pela governança e estava instalado, mas o projeto não possuía revisions. O schema era materializado apenas por `Base.metadata.create_all()`, sem histórico de evolução ou downgrade.
-
-### Decisão
-
-- `0001_initial_schema` é a baseline do schema existente.
-- bancos novos usam `alembic upgrade head`;
-- bancos preexistentes compatíveis usam `alembic stamp head` depois de backup e verificação de schema;
-- SQLite usa batch migrations;
-- revisions autogeradas devem ser revisadas manualmente;
-- migrations futuras são obrigatórias para alterações de schema.
-
-### Validação
-
-O schema gerado por `upgrade head` foi comparado com `Base.metadata` e apresentou zero diferenças na validação independente. Também foram validados downgrade e adoção por stamp.
-
-### Consequências
-
-P0.4 poderá adicionar constraints e Sprint 6B poderá criar `processing_jobs` sem alterações ad hoc no banco. `create_all()` será retirado do startup normal na P0.6.
+Alembic é a fonte oficial para evolução do schema. Bancos novos usam `upgrade head`; bancos legados devem ser marcados na revision que realmente representam e depois avançados pelas revisions posteriores. Migrations autogeradas exigem revisão manual.
 
 ---
 
-**Document Version:** 1.2  
+## TD-018 — Upload de áudio usa staging em chunks e ffprobe
+
+**Status:** Accepted  
+**Data:** 2026-08-16  
+**ADR:** `docs/adr/ADR-019-streaming-audio-staging.md`
+
+### Contexto
+
+O endpoint materializava o arquivo inteiro com `await file.read()`, fazendo o consumo de memória crescer proporcionalmente ao tamanho do upload. A validação também não confirmava a presença de um stream de áudio real.
+
+### Decisão
+
+- `UploadFile.file` é processado fora do event loop via threadpool;
+- o arquivo é escrito em `storage/temp` em chunks de 1 MiB;
+- o limite é contabilizado durante a escrita;
+- assinatura e metadados são validados antes da promoção;
+- `ffprobe` confirma o stream de áudio e extrai duração, codec, canais e sample rate;
+- o arquivo validado é promovido atomicamente com `os.replace`;
+- falhas antes do commit limpam temporário ou arquivo final por compensação;
+- ausência de `ffprobe` é falha operacional do servidor, não entrada inválida do usuário.
+
+### Consequências
+
+O upload deixa de manter o arquivo completo em RAM e cria uma base adequada para o futuro worker de transcrição. `ffprobe` passa a ser dependência operacional e o limite também deverá ser aplicado no reverse proxy antes de produção.
+
+---
+
+**Document Version:** 1.3  
 **Last Updated:** 2026-08-16  
 **Status:** Active
