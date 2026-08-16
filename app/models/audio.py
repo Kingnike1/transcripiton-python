@@ -2,14 +2,26 @@
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Integer, String, DateTime, ForeignKey
+
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 
 
 class Audio(Base):
+    """Stored meeting audio with at most one active row per meeting."""
+
     __tablename__ = "audios"
+    __table_args__ = (
+        Index(
+            "uq_audios_active_meeting",
+            "meeting_id",
+            unique=True,
+            sqlite_where=text("deleted_at IS NULL"),
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     meeting_id: Mapped[int] = mapped_column(Integer, ForeignKey("meetings.id"), nullable=False)
