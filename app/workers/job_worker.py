@@ -4,6 +4,7 @@ import logging
 import socket
 import time
 from collections.abc import Callable
+from threading import Event, Thread
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -73,17 +74,21 @@ class JobWorker:
 
             job_type = JobType(job.job_type)
             handler = self.handlers[job_type]
+            heartbeat_stop, heartbeat_thread = self._start_heartbeat(job.id)
             try:
                 def report_progress(progress: int) -> None:
                     if not service.set_progress(job.id, self.worker_id, progress):
                         raise RuntimeError("Worker lost ownership of the job")
-                    service.heartbeat(job.id, self.worker_id)
 
                 result = handler(job, report_progress)
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=2)
                 if not service.complete(job.id, self.worker_id, result=result):
                     raise RuntimeError("Worker lost ownership before completion")
                 logger.info("Completed job %s type=%s", job.id, job.job_type)
             except Exception as exc:
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=2)
                 logger.exception("Job %s failed", job.id)
                 if not service.fail_or_retry(
                     job.id,
@@ -101,6 +106,27 @@ class JobWorker:
             return True
         finally:
             session.close()
+
+    def _start_heartbeat(self, job_id: str) -> tuple[Event, Thread]:
+        stop = Event()
+        interval = max(2.0, self.lease_seconds / 3)
+
+        def loop() -> None:
+            while not stop.wait(interval):
+                heartbeat_session = self.session_factory()
+                try:
+                    service = PersistentJobService(heartbeat_session)
+                    if not service.heartbeat(job_id, self.worker_id):
+                        logger.warning("Worker %s lost heartbeat ownership for %s", self.worker_id, job_id)
+                        return
+                except Exception:
+                    logger.exception("Heartbeat failed for job %s", job_id)
+                finally:
+                    heartbeat_session.close()
+
+        thread = Thread(target=loop, name=f"job-heartbeat-{job_id[:8]}", daemon=True)
+        thread.start()
+        return stop, thread
 
     def run_forever(self, poll_seconds: float = 1.0) -> None:
         logger.info("Worker %s started", self.worker_id)
