@@ -5,99 +5,105 @@
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-16  
 **Sprint atual:** Sprint 6A — Estabilização do Núcleo  
-**Stack em execução:** P0.2 — Migrations com Alembic  
-**Branch:** `agent/stack-p0-2-alembic`  
-**Branch base:** `agent/stack-p0-1-transaction-uow`  
+**Stack em execução:** P0.3 — Upload seguro em streaming  
+**Branch:** `agent/stack-p0-3-streaming-upload`  
+**Branch base:** `agent/stack-p0-2-alembic`  
 **Branch de integração:** `develop`  
-**Status:** P0.2 implementada em branch dependente; integração bloqueada pelo quality gate da P0.1
+**Status:** P0.3 implementada em branch empilhada; integração continua bloqueada pelo quality gate da P0.1
 
-## Baseline
+## Baseline e cadeia de branches
 
-- `main`: `017dc2127f4dd179c08a26308355fbc1b8ce066f`.
-- Sprint 5 integrada na `main`.
-- `develop` criada a partir da `main`.
-- P0.1 implementada no PR #2, ainda sem GitHub Actions no head atual.
-- Último CI confiável da `main`: 88 testes aprovados e 85,05% de cobertura.
-- P0.2 foi criada sobre o head da P0.1 para permitir continuidade sem integrar código não validado em `develop`/`main`.
+```text
+main
+  ↓
+develop
+
+agent/stack-p0-1-transaction-uow   → PR #2
+  ↓
+agent/stack-p0-2-alembic           → PR #3
+  ↓
+agent/stack-p0-3-streaming-upload
+```
+
+O desenvolvimento permanece empilhado para permitir avanço sem integrar código não validado em `develop` ou `main`.
 
 ## P0.1 — Transações e Unit of Work
-
-### Implementado
 
 - [x] `SqlAlchemyUnitOfWork`.
 - [x] Service Layer proprietária de commit/rollback.
 - [x] Repositories transaction-neutral.
-- [x] CRUD de reunião migrado para UoW.
-- [x] Persistência real de transições de estado.
+- [x] Persistência de transições de estado.
 - [x] `AudioService` alinhado à UoW.
-- [x] Testes de commit, rollback e persistência em nova sessão.
-- [x] ADR-017 e documentação arquitetural.
-
-### Pendente de integração
-
-- [ ] CI no head atual.
-- [ ] PR direcionado para `develop`.
+- [x] Testes transacionais e ADR-017.
+- [ ] GitHub Actions no head atual.
 - [ ] Merge em `develop`.
 
 ## P0.2 — Migrations com Alembic
 
-### Objetivo
+- [x] `alembic.ini` e ambiente de migrations.
+- [x] `0001_initial_schema`.
+- [x] SQLite batch migrations.
+- [x] Testes de upgrade, drift, stamp e downgrade.
+- [x] ADR-018.
+- [x] Validação independente com zero diferenças entre migration e metadata.
+- [ ] Quality gate oficial após desbloqueio do CI.
 
-Tornar o schema versionável antes de introduzir constraints adicionais e jobs persistentes.
+## P0.3 — Upload seguro em streaming
 
 ### Implementado
 
-- [x] `alembic.ini`.
-- [x] `migrations/env.py` conectado a `settings.DATABASE_URL`.
-- [x] SQLite configurado com `render_as_batch=True`.
-- [x] Comparação de tipos habilitada.
-- [x] Template de revisions.
-- [x] Revision `0001_initial_schema` com o schema atual.
-- [x] Teste de `upgrade head` em banco vazio.
-- [x] Teste de drift entre migration e `Base.metadata`.
-- [x] Teste de adoção de banco legado por `stamp head`.
-- [x] Teste de `downgrade base` em banco descartável.
-- [x] ADR-018.
-- [x] Documentação de banco atualizada.
-- [x] Validação independente: upgrade/downgrade executados e comparação retornou zero diferenças.
+- [x] Remoção de `await file.read()` do endpoint.
+- [x] Execução do pipeline síncrono de filesystem em threadpool.
+- [x] `AudioUploadStager` com leitura em chunks de 1 MiB.
+- [x] Limite aplicado durante a escrita, antes de materializar o arquivo completo.
+- [x] Staging em `storage/temp`.
+- [x] Preservação da extensão no arquivo temporário.
+- [x] Validação de nome, MIME, tamanho e assinatura sem carregar arquivo inteiro.
+- [x] Rejeição explícita de path traversal com `/` e `\\`.
+- [x] Inspeção com `ffprobe`.
+- [x] Validação de existência de stream de áudio.
+- [x] Extração de duração, codec, canais e sample rate.
+- [x] Promotion atômica com `os.replace`.
+- [x] Limpeza de temporários em falha.
+- [x] Compensação do arquivo final se o commit do banco falhar.
+- [x] Migration `0002_audio_media_metadata`.
+- [x] Persistência dos metadados técnicos.
+- [x] HTTP 503 quando `ffprobe` não estiver disponível.
+- [x] Testes com inspector fake e leitura em chunks.
+- [x] Testes do parser de `ffprobe`.
+- [x] ADR-019.
+- [x] Validação independente da migration `0001 → 0002` com zero drift.
 
-### Regra de adoção
+### Dependência operacional nova
+
+O ambiente que recebe uploads deve possuir `ffprobe` (distribuído normalmente com FFmpeg). O caminho pode ser configurado por `FFPROBE_BINARY` e o timeout por `FFPROBE_TIMEOUT_SECONDS`.
+
+## Regra atual de adoção do Alembic
+
+Como já existe `0002`, bancos legados correspondentes ao schema original devem seguir:
 
 ```text
-Banco novo
-  → alembic upgrade head
-
-Banco preexistente criado antes do Alembic
-  → backup
-  → verificar compatibilidade do schema
-  → alembic stamp head
-  → migrations futuras via alembic upgrade head
+backup
+  ↓
+verificar schema equivalente a 0001
+  ↓
+alembic stamp 0001_initial_schema
+  ↓
+alembic upgrade head
 ```
 
-`stamp` não deve ser usado para esconder drift de schema.
-
-## Política Transacional Vigente
-
-```text
-API
-  ↓
-Application Service
-  ↓ define commit/rollback
-SqlAlchemyUnitOfWork
-  ↓
-Repositories (query/add/flush)
-  ↓
-SQLAlchemy Session
-```
+Usar `stamp head` em um banco ainda no schema `0001` pularia migrations posteriores e não é permitido.
 
 ## Riscos e Dívidas Abertas
 
 | Item | Prioridade | Estado |
 |---|---|---|
 | CI não dispara para commits feitos pela integração | Crítica para integração | Bloqueando merges |
-| Upload lê arquivo inteiro em memória | Emergencial | P0.3 |
 | Regra de um áudio não possui constraint de banco | Emergencial | P0.4 |
+| Upload simultâneo ainda pode disputar a regra de duplicidade | Emergencial | P0.4 |
+| Limite HTTP ainda não é duplicado no reverse proxy | Alta antes de produção | Deployment/P3 |
 | Handler genérico expõe detalhes internos | Alta | P0.5 |
+| `file_path` ainda aparece em resposta pública | Alta | P0.5 |
 | `init_db()`/`create_all()` ainda participa do startup | Alta | P0.6 |
 | `datetime.utcnow()` restante | Média/Alta | P0.6 |
 | `get_stale_processing(minutes)` ignora `minutes` | Alta | P0.6 |
@@ -106,13 +112,13 @@ SQLAlchemy Session
 
 ## Próxima Stack Técnica
 
-**P0.3 — Upload seguro em streaming**
+**P0.4 — Consistência e concorrência**
 
-Objetivo: remover a leitura integral do arquivo em RAM, introduzir escrita em chunks, arquivo temporário, limite durante a transferência e base para inspeção de mídia.
+Objetivo: definir formalmente a cardinalidade de áudio por reunião, garanti-la no banco via Alembic, impedir race condition de uploads simultâneos e introduzir a base de idempotência.
 
 ## Regra de Integração
 
-Nenhuma stack dependente será mesclada em `develop` ou `main` enquanto a P0.1 não tiver um quality gate reproduzível. Branches seguintes podem ser desenvolvidas de forma empilhada para não bloquear o trabalho.
+Nenhuma stack dependente será mesclada em `develop` ou `main` enquanto a P0.1 não tiver quality gate reproduzível.
 
-**Document Version:** 1.6  
+**Document Version:** 1.7  
 **Status:** Active

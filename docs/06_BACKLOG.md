@@ -46,30 +46,47 @@
 - [x] Usar `settings.DATABASE_URL` como fonte de configuração
 - [x] Validar `upgrade head` em banco vazio
 - [x] Comparar schema migrado com `Base.metadata`
-- [x] Validar adoção de banco legado via `stamp head`
+- [x] Validar adoção segura de banco legado por baseline + upgrade
 - [x] Validar `downgrade base` em banco descartável
 - [x] Registrar ADR-018
 - [x] Atualizar documentação de banco
 - [ ] Executar suíte completa no GitHub Actions quando o bloqueio de CI for resolvido
 - [ ] Integrar após P0.1 passar pelo quality gate
 
+### Sprint 6A — P0.3 Upload seguro em streaming
+
+- [x] Remover `await file.read()` do endpoint de upload
+- [x] Ler `UploadFile.file` em chunks de 1 MiB
+- [x] Executar pipeline síncrono de filesystem via threadpool
+- [x] Limitar tamanho durante a escrita
+- [x] Usar `storage/temp` para staging
+- [x] Preservar extensão no arquivo temporário
+- [x] Validar nome, MIME, tamanho e assinatura sem materializar o arquivo completo
+- [x] Rejeitar path traversal com `/` e `\\`
+- [x] Inspecionar container com `ffprobe`
+- [x] Validar presença de stream de áudio
+- [x] Extrair duração, codec, canais e sample rate
+- [x] Promover arquivo validado atomicamente com `os.replace`
+- [x] Limpar temporários em erro
+- [x] Compensar arquivo final em falha de banco antes de commit confirmado
+- [x] Adicionar migration `0002_audio_media_metadata`
+- [x] Persistir metadados técnicos
+- [x] Tratar ausência de `ffprobe` como indisponibilidade do servidor
+- [x] Adicionar testes de chunking, limite, limpeza, inspector e migrations
+- [x] Registrar ADR-019
+- [x] Atualizar estado e documentação de banco
+- [ ] Quality gate oficial quando o bloqueio de CI for resolvido
+- [ ] Integrar após P0.1/P0.2
+
 ## P0 — Estabilização emergencial restante
-
-### P0.3 — Upload seguro em streaming
-
-- [ ] Ler `UploadFile` em chunks
-- [ ] Limitar tamanho durante escrita
-- [ ] Usar arquivo temporário e movimentação atômica
-- [ ] Validar/inspecionar mídia sem carregar o arquivo completo em RAM
-- [ ] Integrar `ffprobe` para duração, codec, canais e sample rate
-- [ ] Limpar temporários em erro/cancelamento
 
 ### P0.4 — Consistência e concorrência
 
-- [ ] Decidir um ou múltiplos áudios por reunião
-- [ ] Criar constraint correspondente via Alembic
-- [ ] Cobrir uploads concorrentes
-- [ ] Definir estratégia de idempotência
+- [ ] Formalizar a cardinalidade de áudio por reunião
+- [ ] Criar constraint/índice correspondente via Alembic
+- [ ] Tratar race condition entre uploads simultâneos
+- [ ] Cobrir concorrência/integridade no banco
+- [ ] Definir estratégia de idempotência sem introduzir infraestrutura prematura
 
 ### P0.5 — Tratamento seguro de erros
 
@@ -89,7 +106,7 @@
 
 ### P0.7 — Qualidade e governança
 
-- [ ] Expandir CI para `develop` e `stack/**`
+- [ ] Expandir CI para `develop` e branches de stack
 - [ ] Resolver disparo do GitHub Actions para o fluxo atual de integração
 - [ ] Adicionar verificação explícita de migrations ao CI
 - [ ] Adicionar Ruff
@@ -133,7 +150,7 @@
 - [ ] UI de upload
 - [ ] Player de áudio
 - [ ] Gravação por microfone
-- [ ] Extração de duração
+- [x] Extração de duração
 - [ ] Remoção/substituição controlada de áudio
 - [ ] Download ou streaming autenticado
 
@@ -147,6 +164,6 @@
 - [ ] Busca textual
 - [ ] Exportação Markdown, TXT, DOCX e PDF
 
-**Document Version:** 1.3  
+**Document Version:** 1.4  
 **Last Updated:** 2026-08-16  
 **Status:** Active

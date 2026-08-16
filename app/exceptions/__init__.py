@@ -7,6 +7,7 @@ from app.exceptions.audio import (
     RecordingError,
     AudioUploadError,
     AudioFormatError,
+    AudioInspectorUnavailableError,
     MeetingNotFoundError,
     AudioAlreadyExistsError,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "RecordingError",
     "AudioUploadError",
     "AudioFormatError",
+    "AudioInspectorUnavailableError",
     "MeetingNotFoundError",
     "AudioAlreadyExistsError",
     "PipelineError",

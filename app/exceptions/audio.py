@@ -19,6 +19,10 @@ class AudioFormatError(AudioUploadError):
     """Raised when filename, MIME type, and content are inconsistent."""
 
 
+class AudioInspectorUnavailableError(AudioError):
+    """Raised when the server cannot inspect uploaded media."""
+
+
 class MeetingNotFoundError(AudioError):
     """Raised when an audio operation targets an unknown meeting."""
 

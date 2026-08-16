@@ -2,7 +2,7 @@
 
 ## Visão arquitetural
 
-O AMIP é um **monólito modular em camadas**. O objetivo atual é manter uma única base de código e um único deploy lógico, com separação clara entre apresentação, API, casos de uso, persistência e providers externos.
+O AMIP é um **monólito modular em camadas**. O objetivo atual é manter uma única base de código e um único deploy lógico, com separação clara entre apresentação, API, casos de uso, persistência, storage e providers externos.
 
 A arquitetura evita microservices enquanto não existir necessidade comprovada de escala ou isolamento operacional.
 
@@ -21,7 +21,7 @@ SQLAlchemy / Database
 
 Application Services
         ↓
-Providers externos (futuros)
+Storage / Media Inspection / Providers externos
 ```
 
 ## Estado real dos módulos
@@ -30,9 +30,11 @@ Providers externos (futuros)
 |---|---|
 | API de reuniões | Implementada |
 | Service/Repository de reuniões | Implementados |
-| Upload e metadados de áudio | Implementados |
+| Upload de áudio | Implementado com staging em chunks |
+| Inspeção de mídia | Implementada com `ffprobe` |
 | Storage local | Implementado |
-| Unit of Work SQLAlchemy | Implementada na Stack P0.1 |
+| Unit of Work SQLAlchemy | Implementada na P0.1 |
+| Alembic | Implementado na P0.2 |
 | Jobs | Protótipo em memória; não persistente |
 | Pipeline | Orquestrador/contratos, sem providers concretos |
 | Transcrição | Planejada |
@@ -72,7 +74,8 @@ Regras:
 - converter erros de aplicação em respostas HTTP;
 - usar dependency injection;
 - não executar queries SQL diretamente;
-- não controlar regra de negócio ou transação de domínio.
+- não controlar transações de domínio;
+- não materializar arquivos grandes em memória quando streaming for possível.
 
 ### Application Service Layer
 
@@ -91,9 +94,9 @@ Regras:
 - falhas externas não transacionais precisam de compensação explícita;
 - detalhes de HTTP não pertencem a esta camada.
 
-## Política transacional — Stack P0.1
+## Política transacional — P0.1
 
-A partir da ADR-017, **repositories não executam `commit()` ou `rollback()`**.
+Repositories não executam `commit()` ou `rollback()`.
 
 ```text
 API
@@ -108,31 +111,31 @@ Repositories
   └── query / add / flush
 ```
 
-### Unit of Work
+A `Session` continua request-scoped no FastAPI. A Unit of Work não cria uma segunda sessão para o mesmo caso de uso.
 
-`app/database/unit_of_work.py` agrupa repositories que usam a mesma `Session` e oferece:
+## Banco e migrations — P0.2
 
-- `transaction()`;
-- `commit()`;
-- `rollback()`;
-- `refresh()`.
+Alembic é a fonte oficial de evolução do schema.
 
-A `Session` continua request-scoped no FastAPI. A Unit of Work não cria uma segunda conexão nem uma segunda sessão para o mesmo caso de uso.
-
-### Repository Layer
-
-Repositories encapsulam acesso ao banco e deixam as alterações preparadas para a transação do service.
-
-Operações de escrita devem usar `add()`/`flush()` sem commit independente.
-
-Isso permite casos de uso como:
+Estrutura atual:
 
 ```text
-alterar Meeting
-+ criar Audio
-+ criar Job futuramente
-= um único commit do caso de uso
+alembic.ini
+migrations/
+├── env.py
+├── script.py.mako
+└── versions/
+    ├── 0001_initial_schema.py
+    └── 0002_audio_media_metadata.py
 ```
+
+Regras:
+
+- bancos novos: `alembic upgrade head`;
+- bancos legados devem ser marcados na revision que realmente representam antes de avançar;
+- SQLite usa batch migrations;
+- revisions autogeradas sempre exigem revisão humana;
+- `Base.metadata.create_all()` ainda existe no startup e será retirado do fluxo normal na P0.6.
 
 ## Fluxos atuais
 
@@ -153,8 +156,6 @@ response
 ### Transição de estado
 
 ```text
-ProcessingService ou outro caso de uso
-  ↓
 MeetingService.transition_status
   ↓
 Meeting.transition_status valida domínio
@@ -164,26 +165,63 @@ MeetingRepository.update (flush)
 Unit of Work commit
 ```
 
-A Stack P0.1 corrige o comportamento anterior em que `transition_status()` alterava apenas o objeto da sessão sem garantir persistência.
+### Upload de áudio — P0.3
 
-### Upload de áudio
+O endpoint mantém `multipart/form-data`, mas não executa `await file.read()` para materializar o arquivo completo.
 
 ```text
 POST /api/meetings/{meeting_id}/audio
   ↓
-AudioService
-  ├── valida reunião e arquivo
-  ├── salva arquivo no storage
+UploadFile.file
+  ↓ run_in_threadpool
+AudioUploadStager
+  ↓ chunks de 1 MiB
+storage/temp/{uuid}.staged.{ext}
   ↓
-Unit of Work
+AudioValidator
+  ├── nome / path
+  ├── MIME / extensão
+  ├── tamanho
+  └── assinatura binária
+  ↓
+FFprobeAudioInspector
+  ├── confirma stream de áudio
+  ├── duração
+  ├── codec
+  ├── canais
+  └── sample rate
+  ↓
+os.replace
+  ↓
+storage/audio/{meeting_id}/{uuid}.{ext}
+  ↓
+SqlAlchemyUnitOfWork
   ├── cria Audio
-  ├── altera status da Meeting
+  ├── altera Meeting.status
   └── commit único
-  ↓
-refresh + response
 ```
 
-Como filesystem e banco não participam da mesma transação ACID, uma falha antes do commit confirmado remove o arquivo armazenado. Após commit confirmado, uma falha posterior de leitura/refresh não deve apagar o arquivo persistido.
+### Compensação
+
+Filesystem e banco não compartilham uma transação ACID. Portanto:
+
+- falha durante staging → temporário removido;
+- falha de validação/ffprobe → temporário removido;
+- falha do banco depois da promoção e antes do commit confirmado → arquivo final removido;
+- falha posterior a um commit confirmado não deve apagar o arquivo persistido.
+
+## Dependência operacional de mídia
+
+O servidor que recebe uploads precisa possuir `ffprobe`, normalmente distribuído com FFmpeg.
+
+Configuração:
+
+```text
+FFPROBE_BINARY=ffprobe
+FFPROBE_TIMEOUT_SECONDS=15
+```
+
+Ausência de `ffprobe` é tratada como indisponibilidade operacional (HTTP 503), e não como erro de formato do usuário.
 
 ## Estrutura atual relevante
 
@@ -195,9 +233,6 @@ app/
 │   └── meetings.py
 ├── config/
 ├── core/
-│   ├── enums.py
-│   ├── handlers.py
-│   └── logging.py
 ├── database/
 │   ├── audio_repository.py
 │   ├── base.py
@@ -210,7 +245,9 @@ app/
 ├── providers/
 ├── schemas/
 └── services/
+    ├── audio_inspector.py
     ├── audio_service.py
+    ├── audio_upload_stager.py
     ├── audio_validator.py
     ├── interfaces.py
     ├── job_service.py
@@ -218,13 +255,16 @@ app/
     ├── pipeline_service.py
     ├── processing_service.py
     └── storage_service.py
+
+migrations/
+└── versions/
+    ├── 0001_initial_schema.py
+    └── 0002_audio_media_metadata.py
 ```
 
 ## Provider architecture
 
 Interfaces existem para transcrição, diarização, análise e exportação, mas providers concretos ainda não fazem parte do produto operacional.
-
-Regra para futuras integrações:
 
 ```text
 Application Service
@@ -234,25 +274,11 @@ Provider Adapter
 API ou modelo externo
 ```
 
-Providers não devem controlar transações de banco da aplicação.
+Providers não controlam transações do banco da aplicação.
 
-## Banco e migrations
+## Próxima evolução arquitetural
 
-- SQLite continua sendo o banco padrão de desenvolvimento.
-- PostgreSQL permanece planejado para staging/produção multiusuário.
-- SQLAlchemy é o ORM.
-- Alembic é obrigatório pela governança, mas a infraestrutura de migrations ainda será implementada na Stack P0.2.
-- `Base.metadata.create_all()` ainda existe e será tratado nas stacks de migrations/lifecycle.
-
-## Testes arquiteturais relevantes
-
-A política transacional deve ser protegida por testes que demonstrem:
-
-- repository não commita sozinho;
-- commit torna o dado visível em nova sessão;
-- exceção causa rollback;
-- transição de estado é durável;
-- falha no commit do upload reverte banco e compensa filesystem.
+A P0.4 deve formalizar no banco a cardinalidade de áudio por reunião e eliminar a race condition entre uploads concorrentes. A Sprint 6B somente começará depois da estabilização P0 e criará jobs persistentes/worker recuperável.
 
 ## Regras de evolução
 
@@ -260,18 +286,21 @@ A política transacional deve ser protegida por testes que demonstrem:
 2. Não colocar SQL em routes.
 3. Não colocar `commit()` em repositories.
 4. Não executar processamento pesado dentro do request HTTP.
-5. Não integrar Whisper antes de jobs persistentes.
-6. Toda mudança arquitetural relevante deve gerar ADR.
-7. Documentação deve distinguir funcionalidade atual de roadmap.
+5. Não materializar uploads grandes quando streaming for possível.
+6. Não integrar Whisper antes de jobs persistentes.
+7. Toda mudança arquitetural relevante deve gerar ADR.
+8. Toda alteração de schema deve usar Alembic.
+9. Documentação deve distinguir funcionalidade atual de roadmap.
 
 ## Decisões relacionadas
 
-- `TECH_DECISIONS.md` — decisões gerais do projeto.
-- `docs/adr/ADR-016-audio-upload-unit-of-work.md` — transação e compensação no upload.
-- `docs/adr/ADR-017-service-layer-transaction-ownership.md` — ownership transacional global do Service Layer.
+- `TECH_DECISIONS.md` — registro técnico ativo.
+- `docs/adr/ADR-017-service-layer-transaction-ownership.md` — ownership transacional.
+- `docs/adr/ADR-018-alembic-schema-baseline.md` — migrations.
+- `docs/adr/ADR-019-streaming-audio-staging.md` — upload em chunks e inspeção de mídia.
 
 ---
 
-**Document Version:** 1.1  
-**Last Updated:** 2026-08-06  
+**Document Version:** 1.2  
+**Last Updated:** 2026-08-16  
 **Status:** Active

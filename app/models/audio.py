@@ -1,6 +1,4 @@
-"""
-Audio database model.
-"""
+"""Audio database model."""
 
 from datetime import datetime
 from typing import Optional
@@ -12,7 +10,7 @@ from app.database.base import Base
 
 class Audio(Base):
     __tablename__ = "audios"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     meeting_id: Mapped[int] = mapped_column(Integer, ForeignKey("meetings.id"), nullable=False)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -20,12 +18,14 @@ class Audio(Base):
     duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     file_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     mime_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    codec_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    channels: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    sample_rate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    
-    # Relationships
+
     meeting: Mapped["Meeting"] = relationship("Meeting", back_populates="audios")
     transcription = relationship("Transcription", back_populates="audio", uselist=False)
