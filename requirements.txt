@@ -1,32 +1,19 @@
-# Core Dependencies
-fastapi==0.109.0
+# HTTP / ASGI runtime
+fastapi==0.139.2
+starlette==1.3.1
 uvicorn==0.27.0
-python-dotenv==1.0.0
-python-multipart==0.0.6
+python-dotenv==1.2.2
+python-multipart==0.0.32
 
-# Database
+# Database / migrations
 sqlalchemy==2.0.25
 alembic==1.13.1
 
-# Validation
-pydantic==2.5.3
-pydantic-settings==2.1.0
+# Validation / settings
+pydantic==2.13.4
+pydantic-settings==2.14.2
 
 # Templates
-jinja2==3.1.3
+jinja2==3.1.6
 
-# Export
-python-docx==1.1.0
-markdown==3.5.2
-fpdf2==2.7.8
-
-# Testing
-pytest==7.4.4
-pytest-asyncio==0.23.3
-pytest-cov==4.1.0
-httpx==0.26.0
-
-# AI & ML (Installed separately due to build issues)
-# openai==1.10.0
-# pyannote.audio==2.1.1
-# openai-whisper==20231117
+# AI & ML providers are added only when their implementation stack is active.
