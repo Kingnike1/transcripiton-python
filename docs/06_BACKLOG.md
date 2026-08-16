@@ -50,8 +50,8 @@
 - [x] Validar `downgrade base` em banco descartável
 - [x] Registrar ADR-018
 - [x] Atualizar documentação de banco
-- [ ] Executar suíte completa no GitHub Actions quando o bloqueio de CI for resolvido
-- [ ] Integrar após P0.1 passar pelo quality gate
+- [ ] Quality gate oficial
+- [ ] Integrar após P0.1
 
 ### Sprint 6A — P0.3 Upload seguro em streaming
 
@@ -62,31 +62,43 @@
 - [x] Usar `storage/temp` para staging
 - [x] Preservar extensão no arquivo temporário
 - [x] Validar nome, MIME, tamanho e assinatura sem materializar o arquivo completo
-- [x] Rejeitar path traversal com `/` e `\\`
+- [x] Rejeitar path traversal
 - [x] Inspecionar container com `ffprobe`
 - [x] Validar presença de stream de áudio
 - [x] Extrair duração, codec, canais e sample rate
 - [x] Promover arquivo validado atomicamente com `os.replace`
 - [x] Limpar temporários em erro
-- [x] Compensar arquivo final em falha de banco antes de commit confirmado
+- [x] Compensar arquivo final em falha de banco
 - [x] Adicionar migration `0002_audio_media_metadata`
 - [x] Persistir metadados técnicos
 - [x] Tratar ausência de `ffprobe` como indisponibilidade do servidor
 - [x] Adicionar testes de chunking, limite, limpeza, inspector e migrations
 - [x] Registrar ADR-019
-- [x] Atualizar estado e documentação de banco
-- [ ] Quality gate oficial quando o bloqueio de CI for resolvido
+- [ ] Quality gate oficial
 - [ ] Integrar após P0.1/P0.2
 
+### Sprint 6A — P0.4 Consistência e concorrência
+
+- [x] Formalizar uma reunião → no máximo um áudio ativo
+- [x] Manter soft-deleted como histórico substituível
+- [x] Criar índice único parcial `uq_audios_active_meeting`
+- [x] Adicionar migration `0003_one_active_audio_per_meeting`
+- [x] Detectar duplicidades legadas antes de criar o índice
+- [x] Falhar migration explicitamente sem apagar dados conflitantes
+- [x] Manter pre-check rápido no Service Layer
+- [x] Usar constraint do banco como defesa contra race condition
+- [x] Traduzir conflito específico para `AudioAlreadyExistsError`
+- [x] Não mascarar outros `IntegrityError`
+- [x] Compensar storage quando a race é perdida
+- [x] Testar dois áudios ativos versus histórico soft-deletado
+- [x] Testar migration com dados conflitantes
+- [x] Definir estratégia de idempotência incremental
+- [x] Registrar ADR-020
+- [x] Validar migration `0003` com zero drift e downgrade
+- [ ] Quality gate oficial
+- [ ] Integrar após P0.1/P0.2/P0.3
+
 ## P0 — Estabilização emergencial restante
-
-### P0.4 — Consistência e concorrência
-
-- [ ] Formalizar a cardinalidade de áudio por reunião
-- [ ] Criar constraint/índice correspondente via Alembic
-- [ ] Tratar race condition entre uploads simultâneos
-- [ ] Cobrir concorrência/integridade no banco
-- [ ] Definir estratégia de idempotência sem introduzir infraestrutura prematura
 
 ### P0.5 — Tratamento seguro de erros
 
@@ -164,6 +176,6 @@
 - [ ] Busca textual
 - [ ] Exportação Markdown, TXT, DOCX e PDF
 
-**Document Version:** 1.4  
+**Document Version:** 1.5  
 **Last Updated:** 2026-08-16  
 **Status:** Active
