@@ -1,5 +1,8 @@
 """AMIP - AI Meeting Intelligence Platform main application."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -12,15 +15,27 @@ from app.config import settings
 from app.core.handlers import register_exception_handlers
 from app.core.logging import logger
 from app.core.request_context import register_request_id_middleware
-from app.database.session import init_db
+from app.database.session import engine
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Manage process resources without mutating the database schema."""
+    logger.info("Starting %s in %s environment", settings.APP_NAME, settings.ENVIRONMENT)
+    try:
+        yield
+    finally:
+        engine.dispose()
+        logger.info("Stopped %s", settings.APP_NAME)
+
 
 app = FastAPI(
     title=settings.APP_NAME,
     description="AI Meeting Intelligence Platform - Transcribe, analyze, and archive meetings",
     version="0.2.0",
+    lifespan=lifespan,
 )
 
-init_db()
 register_request_id_middleware(app)
 register_exception_handlers(app)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -30,17 +45,19 @@ app.include_router(audio_router)
 
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+def home(request: Request) -> HTMLResponse:
+    """Render the current landing page."""
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.get("/health")
-def health_check():
+def health_check() -> dict[str, str]:
+    """Return a lightweight process health response."""
     return {"status": "healthy", "version": app.version}
 
 
 if __name__ == "__main__":
-    logger.info(f"Starting {settings.APP_NAME} on {settings.HOST}:{settings.PORT}")
+    logger.info("Starting %s on %s:%s", settings.APP_NAME, settings.HOST, settings.PORT)
     uvicorn.run(
         "main:app",
         host=settings.HOST,
