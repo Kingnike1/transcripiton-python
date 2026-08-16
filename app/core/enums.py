@@ -13,6 +13,7 @@ class ProcessingStatus(str, Enum):
     RECORDING = "RECORDING"
     AUDIO_UPLOADED = "AUDIO_UPLOADED"
     TRANSCRIBING = "TRANSCRIBING"
+    TRANSCRIBED = "TRANSCRIBED"
     DIARIZING = "DIARIZING"
     SUMMARIZING = "SUMMARIZING"
     COMPLETED = "COMPLETED"
@@ -20,7 +21,7 @@ class ProcessingStatus(str, Enum):
 
     @classmethod
     def terminal_states(cls) -> list:
-        return [cls.COMPLETED, cls.FAILED]
+        return [cls.TRANSCRIBED, cls.COMPLETED, cls.FAILED]
 
     @classmethod
     def active_states(cls) -> list:
@@ -42,7 +43,8 @@ class ProcessingStatus(str, Enum):
             self.CREATED: [self.RECORDING, self.AUDIO_UPLOADED, self.FAILED],
             self.RECORDING: [self.AUDIO_UPLOADED, self.FAILED],
             self.AUDIO_UPLOADED: [self.TRANSCRIBING, self.FAILED],
-            self.TRANSCRIBING: [self.DIARIZING, self.FAILED],
+            self.TRANSCRIBING: [self.TRANSCRIBED, self.FAILED],
+            self.TRANSCRIBED: [self.DIARIZING, self.SUMMARIZING],
             self.DIARIZING: [self.SUMMARIZING, self.FAILED],
             self.SUMMARIZING: [self.COMPLETED, self.FAILED],
             self.COMPLETED: [],
