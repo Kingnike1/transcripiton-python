@@ -92,7 +92,11 @@ class AudioService:
 
         try:
             try:
-                staged = self.stager.stage(stream, max_size=self.validator.max_size)
+                staged = self.stager.stage(
+                    stream,
+                    max_size=self.validator.max_size,
+                    original_name=filename,
+                )
             except AudioSizeLimitExceeded as exc:
                 raise AudioUploadError(
                     f"Audio file exceeds the maximum size of {self.validator.max_size} bytes"
