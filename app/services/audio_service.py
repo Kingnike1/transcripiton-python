@@ -16,7 +16,7 @@ from app.exceptions.audio import (
     MeetingNotFoundError,
 )
 from app.models.audio import Audio
-from app.services.audio_inspector import FFprobeAudioInspector
+from app.services.audio_inspector import AudioInspector, FFprobeAudioInspector
 from app.services.audio_upload_stager import (
     AudioSizeLimitExceeded,
     AudioUploadStager,
@@ -34,7 +34,7 @@ class AudioService:
         db: Session,
         storage: Optional[StorageService] = None,
         validator: Optional[AudioValidator] = None,
-        inspector=None,
+        inspector: Optional[AudioInspector] = None,
         stager: Optional[AudioUploadStager] = None,
     ) -> None:
         self.uow = SqlAlchemyUnitOfWork(db)
@@ -42,7 +42,7 @@ class AudioService:
         self.audios = self.uow.audios
         self.storage = storage or StorageService()
         self.validator = validator or AudioValidator()
-        self.inspector = inspector or FFprobeAudioInspector()
+        self.inspector: AudioInspector = inspector or FFprobeAudioInspector()
         self.stager = stager or AudioUploadStager(self.storage)
 
     def upload(
