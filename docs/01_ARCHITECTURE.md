@@ -2,14 +2,15 @@
 
 ## Visão atual
 
-O AMIP permanece um **monólito modular em camadas**, com uma única base de código e separação explícita entre HTTP, casos de uso, persistência, storage e providers externos.
+O AMIP é um **monólito modular em camadas**. A base de código continua única, com separação explícita entre HTTP, casos de uso, persistência, storage e providers externos.
 
 ```text
 Client
   ↓ HTTP
 FastAPI
-  ├── Request ID middleware
-  ├── error boundary / handlers
+  ├── request ID middleware
+  ├── error boundary
+  ├── lifespan de recursos
   └── routes
         ↓
 Application Services
@@ -37,8 +38,9 @@ Microservices, Redis, Celery e Kubernetes continuam fora do desenho atual até e
 | Storage local | Implementado |
 | Unit of Work | Implementada — P0.1 |
 | Alembic | Implementado — P0.2 |
-| Regra de um áudio ativo | Implementada no banco — P0.4 |
+| Um áudio ativo por reunião | Implementado — P0.4 |
 | Contrato seguro de erros | Implementado — P0.5 |
+| Lifecycle/configuração segura | Implementado na P0.6 |
 | Jobs persistentes | Não implementados |
 | Transcrição real | Não implementada |
 | Diarização | Não implementada |
@@ -51,34 +53,22 @@ Microservices, Redis, Celery e Kubernetes continuam fora do desenho atual até e
 
 ## API Layer
 
-Responsável apenas por protocolo HTTP:
-
-- request/response Pydantic;
+- protocolo HTTP e Pydantic;
 - dependency injection;
-- tradução de erros conhecidos para HTTP;
-- nunca executar SQL diretamente;
-- nunca controlar transações de domínio;
-- não materializar uploads grandes em memória quando streaming for possível.
+- tradução de erros conhecidos;
+- sem SQL ou transações de domínio;
+- upload grande não deve ser materializado em memória.
 
 ## Application Service Layer
 
-Responsável pelos casos de uso e pela fronteira transacional.
-
-Exemplos atuais:
-
-- `MeetingService`;
-- `AudioService`.
-
-Regras:
-
-- um caso de uso de escrita define um único limite transacional;
-- múltiplos repositories podem participar da mesma Unit of Work;
-- efeitos externos não ACID exigem compensação explícita;
-- detalhes de HTTP não pertencem aos services.
+- casos de uso;
+- fronteiras transacionais;
+- coordenação de repositories;
+- compensação explícita para efeitos externos não ACID.
 
 ## Repository Layer
 
-Repositories são **transaction-neutral**:
+Repositories são transaction-neutral:
 
 ```text
 query / add / update / flush
@@ -100,15 +90,11 @@ SqlAlchemyUnitOfWork.transaction()
 Repositories
 ```
 
-Isso garante que operações compostas possam ser confirmadas ou revertidas como um único caso de uso.
-
 ---
 
 # P0.2–P0.4 — Schema e integridade
 
-Alembic é a fonte oficial de evolução do banco.
-
-Cadeia atual:
+Alembic é a fonte oficial de evolução do schema.
 
 ```text
 0001_initial_schema
@@ -118,33 +104,18 @@ Cadeia atual:
 0003_one_active_audio_per_meeting
 ```
 
-A `0003` introduz o índice único parcial:
-
-```text
-uq_audios_active_meeting
-WHERE deleted_at IS NULL
-```
-
-Regra de domínio:
-
-> uma reunião pode possuir no máximo um áudio ativo.
-
-Soft-deleted permanece como histórico. O pre-check do service reduz trabalho desnecessário, mas a constraint do banco é a autoridade final contra race conditions.
-
-A migration recusa dados legados conflitantes em vez de escolher ou apagar registros automaticamente.
+A `0003` garante no máximo um áudio ativo por reunião por índice único parcial. Soft-deleted permanece como histórico.
 
 ---
 
-# P0.3 — Upload de áudio
+# P0.3 — Pipeline de upload
 
 ```text
 POST /api/meetings/{meeting_id}/audio
   ↓
 UploadFile.file
-  ↓ run_in_threadpool
-AudioUploadStager
-  ↓ chunks de 1 MiB
-storage/temp
+  ↓ threadpool
+AudioUploadStager (chunks)
   ↓
 AudioValidator
   ↓
@@ -152,56 +123,18 @@ FFprobeAudioInspector
   ↓
 os.replace
   ↓
-storage/audio/{meeting_id}/{uuid}.{ext}
+Storage final
   ↓
 SqlAlchemyUnitOfWork
-  ├── cria Audio
-  ├── altera Meeting.status
-  └── commit
 ```
 
-Garantias:
-
-- limite aplicado durante a escrita;
-- arquivo inteiro não é mantido em RAM;
-- temporário é limpo em falha;
-- `ffprobe` confirma stream de áudio e extrai metadados;
-- promoção do arquivo é atômica;
-- falha de banco antes de commit confirmado compensa o arquivo final.
-
-Dependência operacional:
-
-```text
-ffprobe
-```
-
-Ausência do binário é falha de infraestrutura e retorna 503.
+O limite é aplicado durante a escrita, temporários são limpos em erro e falha de banco antes do commit confirmado compensa o arquivo final.
 
 ---
 
-# P0.5 — Error boundary e request correlation
+# P0.5 — Error boundary
 
-Toda requisição recebe um `request_id` gerado pelo servidor.
-
-```text
-Request
-  ↓
-Request ID middleware
-  ↓
-Route / Service
-  ↓ sucesso
-Response + X-Request-ID
-
-ou
-
-Exception
-  ↓
-Global handler
-  ├── log interno + traceback + request_id
-  └── resposta sanitizada + X-Request-ID
-```
-
-Envelope público:
+Toda requisição recebe `request_id`. Erros públicos usam somente:
 
 ```json
 {
@@ -212,77 +145,85 @@ Envelope público:
 }
 ```
 
-Regras:
-
-- `str(exc)`, `exc.details`, SQL, paths e stack traces não são enviados em 5xx;
-- detalhes técnicos ficam nos logs internos;
-- `HTTPException` e `RequestValidationError` são normalizados;
-- o traceback recebido pelo handler é preservado explicitamente no log;
-- `AudioResponse` não expõe `file_path`.
+SQL, paths, credenciais, stack traces e detalhes internos permanecem apenas nos logs.
 
 ---
 
-# Estrutura relevante
+# P0.6 — Lifecycle e configuração
+
+## Startup/shutdown
+
+O processo web não altera o schema.
 
 ```text
-app/
-├── api/
-│   ├── audio.py
-│   ├── dependencies.py
-│   └── meetings.py
-├── core/
-│   ├── handlers.py
-│   └── request_context.py
-├── database/
-│   ├── audio_repository.py
-│   ├── meeting_repository.py
-│   ├── session.py
-│   └── unit_of_work.py
-├── models/
-├── schemas/
-└── services/
-    ├── audio_inspector.py
-    ├── audio_service.py
-    ├── audio_upload_stager.py
-    ├── audio_validator.py
-    ├── meeting_service.py
-    └── storage_service.py
-
-migrations/
-└── versions/
-    ├── 0001_initial_schema.py
-    ├── 0002_audio_media_metadata.py
-    └── 0003_one_active_audio_per_meeting.py
+Deployment
+  ↓
+alembic upgrade head
+  ↓
+FastAPI startup
+  ↓
+requests
+  ↓
+FastAPI shutdown
+  ↓
+engine.dispose()
 ```
 
+O lifespan serve somente para lifecycle de recursos. Não executa `create_all()` nem migrations.
+
+`reset_db()` é uma ferramenta explícita restrita a desenvolvimento/testes.
+
+## Settings
+
+Todos os módulos herdam de `AMIPBaseSettings` e usam `SettingsConfigDict`.
+
+```text
+ENVIRONMENT = development | test | staging | production
+```
+
+Staging/produção falham cedo quando:
+
+- `DEBUG=true`;
+- `SECRET_KEY` é curta ou placeholder.
+
+## Tempo
+
+`app.core.time.utc_now()` é o relógio comum. O backend produz timestamps em UTC e não usa mais `datetime.utcnow()` nos models legados.
+
+SQLite continua usando colunas `DateTime` existentes; não foi criada migration cosmética para `timezone=True`, pois SQLite não garante preservação de `tzinfo`. Esse ponto será revisto com PostgreSQL.
+
+`get_stale_processing(minutes)` agora respeita o limiar solicitado e usa `ProcessingStatus`.
+
 ---
 
-# Próxima evolução
+# CI e integração
 
-A próxima stack é **P0.6 — Lifecycle e configuração**:
+P0.1–P0.5 foram integradas em `develop`. O head integrado passou no CI com 114 testes e 87,04% de cobertura.
 
-- remover `init_db()`/`create_all()` do import normal;
-- usar lifespan do FastAPI;
-- concluir timezone-aware datetimes;
-- concluir Pydantic V2/`ConfigDict`;
-- corrigir `get_stale_processing(minutes)`;
-- impedir defaults inseguros fora de desenvolvimento.
+O workflow atual cobre:
 
-Depois disso, P0.7 deve tornar CI/governança reproduzíveis antes de qualquer integração definitiva das branches empilhadas.
+- `main`;
+- `develop`;
+- `agent/**`;
+- PRs para `main` e `develop`;
+- execução manual por `workflow_dispatch`.
+
+P0.7 ainda deverá acrescentar lint, type checking, auditoria de dependências, segurança e proteção da `main`.
 
 ---
 
-## Regras de evolução
+# Regras de evolução
 
 1. Não colocar SQL em routes.
 2. Não colocar `commit()` em repositories.
 3. Toda mudança de schema usa Alembic.
-4. Toda decisão arquitetural relevante gera ADR.
+4. Migrations não rodam automaticamente no processo web.
 5. Processamento pesado não roda no request HTTP.
 6. Upload grande não deve ser materializado em memória.
 7. Não integrar Whisper antes de jobs persistentes.
 8. Erros públicos não expõem detalhes internos.
-9. Documentação ativa descreve apenas funcionalidades realmente implementadas.
+9. Configuração de staging/produção deve falhar fechada quando insegura.
+10. Documentação ativa descreve apenas funcionalidades realmente implementadas.
 
 ## ADRs relacionados
 
@@ -290,10 +231,15 @@ Depois disso, P0.7 deve tornar CI/governança reproduzíveis antes de qualquer i
 - ADR-018 — baseline Alembic;
 - ADR-019 — streaming/staging de áudio;
 - ADR-020 — um áudio ativo por reunião;
-- ADR-021 — contrato público de erros.
+- ADR-021 — contrato público de erros;
+- ADR-022 — lifecycle e configuração de runtime.
+
+## Próxima evolução
+
+Depois da P0.6: **P0.7 — Qualidade e governança**, P0.8 documental e então Sprint 6B — Jobs persistentes.
 
 ---
 
-**Document Version:** 1.3  
+**Document Version:** 1.4  
 **Last Updated:** 2026-08-16  
 **Status:** Active
