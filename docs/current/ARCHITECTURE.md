@@ -2,29 +2,33 @@
 
 ## Visão
 
-O AMIP é um **monólito modular em camadas**. O desenho atual prioriza simplicidade operacional, transações explícitas e evolução incremental antes de qualquer divisão em microservices.
+O AMIP é um **monólito modular em camadas** com dois processos operacionais: web e worker. Ambos compartilham banco e storage; processamento pesado não roda dentro do request HTTP.
 
 ```text
 Client
   ↓ HTTP
 FastAPI
-  ├── request ID middleware
-  ├── error boundary
-  ├── lifespan de recursos
-  └── routes
-        ↓
-Application Services
-        ↓
-SqlAlchemyUnitOfWork
-        ↓
-Repositories
-        ↓
-SQLAlchemy / Database
-
+  ↓
 Application Services
   ↓
-Storage local / ffprobe / providers futuros
+SqlAlchemyUnitOfWork
+  ↓
+Repositories
+  ↓
+Database
+
+FastAPI ── cria/consulta ──> ProcessingJob
+                              ↓
+                         database queue
+                              ↓ claim/lease
+                         Worker separado
+                              ↓
+                     handler por JobType
+                              ↓
+                   providers / storage
 ```
+
+Redis, Celery, microservices e Kubernetes continuam fora do desenho atual até existir necessidade comprovada.
 
 ## Estado real
 
@@ -37,45 +41,63 @@ Storage local / ffprobe / providers futuros
 | Unit of Work | Implementada |
 | Alembic | Implementado |
 | Um áudio ativo por reunião | Garantido pelo banco |
-| Contrato seguro de erros/request ID | Implementado |
-| Lifecycle/configuração segura | Implementado |
+| Erros/request ID | Implementados |
+| Lifecycle/configuração | Implementados |
 | CI + Quality | Implementados |
-| Jobs persistentes | **Não implementados** |
+| Jobs persistentes | Implementados — Sprint 6B |
+| Worker separado | Implementado — Sprint 6B |
 | Transcrição real | **Não implementada** |
 | Diarização | **Não implementada** |
 | Análise por LLM | **Não implementada** |
-| Busca avançada | **Não implementada** |
-| Exportação | **Não implementada** |
+| UI de uso completa | **Não implementada** |
 | Autenticação/autorização | **Não implementada** |
 
-## Camadas
+## Transações
 
-### API
+Application Services possuem as fronteiras transacionais por `SqlAlchemyUnitOfWork`. Repositories fazem query/add/update/flush e nunca `commit()`/`rollback()`.
 
-Responsável por HTTP, validação Pydantic, dependency injection e tradução de erros. Routes não contêm SQL nem controlam transações de domínio.
+## Jobs persistentes
 
-### Application Services
+`ProcessingJob` é a unidade durável de trabalho assíncrono.
 
-Responsáveis pelos casos de uso. Operações de escrita definem aqui sua fronteira transacional e coordenam compensações de efeitos externos, como filesystem.
-
-### Unit of Work e repositories
+Estados:
 
 ```text
-Application Service
-  ↓
-SqlAlchemyUnitOfWork.transaction()
-  ├── sucesso → commit
-  └── exceção → rollback
-        ↓
-Repositories
-  └── query / add / update / flush
+PENDING
+  ↓ claim
+RUNNING
+  ├── sucesso → COMPLETED
+  ├── falha recuperável → RETRYING → RUNNING
+  └── tentativas esgotadas → FAILED
+
+PENDING/RETRYING → CANCELLED
 ```
 
-Repositories não fazem `commit()` nem `rollback()`.
+### Concorrência e recuperação
+
+- um índice único parcial impede mais de um job ativo do mesmo tipo para a mesma reunião;
+- criação é idempotente enquanto existe job ativo;
+- claim usa atualização condicional, não lock Python em memória;
+- `locked_by`, `locked_at` e `heartbeat_at` representam ownership/lease;
+- job `RUNNING` com heartbeat stale pode ser recuperado por outro worker;
+- `attempt`, `max_attempts` e `available_at` controlam retry;
+- worker só reclama `JobType` para o qual possui handler registrado.
+
+### Limite atual
+
+SQLite + polling no banco é intencional para uso pessoal/local e baixa concorrência. Uma fila especializada só será considerada quando houver throughput ou contenção que justifiquem o custo operacional.
+
+## Worker
+
+O processo separado é iniciado por:
+
+```bash
+python worker.py
+```
+
+`app/workers/registry.py` é o composition root dos handlers. Na conclusão da Sprint 6B ele não registra transcritor real; a Sprint 7 conectará o primeiro handler `TRANSCRIBE`.
 
 ## Schema e migrations
-
-Alembic é a única fonte oficial de evolução do schema.
 
 ```text
 0001_initial_schema
@@ -83,64 +105,25 @@ Alembic é a única fonte oficial de evolução do schema.
 0002_audio_media_metadata
   ↓
 0003_one_active_audio_per_meeting
+  ↓
+0004_processing_jobs
 ```
 
-O processo web não executa migrations automaticamente. Deployment deve executar `alembic upgrade head` antes de iniciar a aplicação.
-
-## Upload de áudio
-
-```text
-POST /api/meetings/{meeting_id}/audio
-  ↓
-UploadFile.file
-  ↓ threadpool
-AudioUploadStager
-  ↓ chunks + limite
-AudioValidator
-  ↓
-FFprobeAudioInspector
-  ↓
-os.replace
-  ↓
-Storage final
-  ↓
-SqlAlchemyUnitOfWork
-```
-
-O upload não materializa o arquivo inteiro em RAM. Temporários são removidos em erro e falhas de banco antes do commit confirmado compensam o arquivo promovido.
-
-## Erros e correlação
-
-Toda requisição recebe `request_id`. Respostas de erro públicas não expõem SQL, paths internos, stack traces, credenciais ou detalhes de exceção.
-
-## Runtime
-
-- Python 3.11 e 3.12 são testados.
-- FastAPI lifespan administra recursos e descarta o engine no shutdown.
-- staging/produção rejeitam `DEBUG=true` e secrets fracas.
-- `utc_now()` é o relógio comum do backend.
-- bind padrão é `127.0.0.1`.
+Migrations continuam externas ao processo web: `alembic upgrade head` antes de iniciar web/worker.
 
 ## Quality gates
 
-### CI
-
-- Python 3.11;
-- suíte completa;
-- cobertura >=80%.
-
-### Quality
-
-- Ruff (`F`/`E9`);
+- Python 3.11: suíte completa + cobertura >=80%;
+- Python 3.12: compatibilidade;
+- Ruff;
 - mypy;
 - migration integrity;
-- Bandit medium/high;
-- `pip-audit` bloqueante;
-- suíte completa em Python 3.12.
+- Bandit;
+- `pip-audit`.
 
 ## Próxima fronteira arquitetural
 
-A próxima mudança estrutural é **Sprint 6B — Jobs persistentes**. O protótipo em memória não é adequado para Whisper/processamento pesado. O desenho alvo permanece um monólito modular com processo web e worker separados compartilhando banco/storage; Redis/Celery não entram sem necessidade comprovada.
+**Sprint 7 — primeira transcrição real**: escolher um único provider, persistir segmentos e registrar o handler `TRANSCRIBE` no worker.
 
 ## ADRs relacionados
 
@@ -150,7 +133,9 @@ A próxima mudança estrutural é **Sprint 6B — Jobs persistentes**. O protót
 - ADR-020 — um áudio ativo por reunião;
 - ADR-021 — contrato público de erros;
 - ADR-022 — lifecycle/configuração;
-- ADR-023 — quality gates/dependências.
+- ADR-023 — quality gates/dependências;
+- ADR-024 — taxonomia documental;
+- ADR-025 — jobs duráveis e worker separado.
 
 ---
 
