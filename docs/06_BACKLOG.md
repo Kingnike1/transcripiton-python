@@ -65,7 +65,7 @@
 
 ---
 
-## P0.8 — Organização documental — EM EXECUÇÃO
+## P0.8 — Organização documental — IMPLEMENTADA / PR #9
 
 - [x] criar `docs/README.md` como mapa documental
 - [x] criar `docs/current/` para documentação implementada
@@ -83,11 +83,15 @@
 - [x] atualizar `docs/00_PROJECT_OVERVIEW.md`
 - [x] atualizar `PROJECT_GOVERNANCE.md` para a nova taxonomia
 - [x] atualizar `PROJECT_STATE.MD` e backlog após P0.7
-- [ ] registrar decisão técnica/ADR da taxonomia documental
-- [ ] remover caminhos antigos/superseded depois de atualizar referências
-- [ ] procurar links antigos/quebrados
-- [ ] CI + Quality
-- [ ] PR + merge em `develop`
+- [x] registrar ADR-024/TD-023 da taxonomia documental
+- [x] remover caminhos antigos/superseded após atualização de referências
+- [x] catalogar materiais históricos em `docs/archive/`
+- [x] adicionar teste que impede retorno de paths superseded
+- [x] adicionar teste de links Markdown locais
+- [x] CI + Quality da branch verdes
+- [x] PR #9 criado para `develop`
+- [ ] CI + Quality do head final do PR #9
+- [ ] merge em `develop`
 - [ ] CI + Quality pós-merge
 
 ---
@@ -148,6 +152,6 @@
 - [ ] busca semântica somente se justificada
 - [ ] exportação Markdown/TXT/DOCX/PDF
 
-**Document Version:** 2.0  
+**Document Version:** 2.1  
 **Last Updated:** 2026-08-16  
 **Status:** Active
