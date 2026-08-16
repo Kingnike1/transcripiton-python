@@ -96,26 +96,18 @@ class IAudioRecorder(ABC):
 
 
 class ITranscriber(ABC):
-    """Speech-to-text provider contract."""
+    """Pure speech-to-text capability.
+
+    Job creation, retry, status and asynchrony belong to the application worker,
+    not to a provider implementation.
+    """
 
     @abstractmethod
     def transcribe(self, audio_path: str, language: str = "auto") -> TranscriptResult:
         raise NotImplementedError
 
     @abstractmethod
-    def transcribe_async(self, audio_path: str, language: str = "auto") -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_transcription_status(self, job_id: str) -> dict[str, Any]:
-        raise NotImplementedError
-
-    @abstractmethod
     def get_supported_languages(self) -> list[str]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def detect_language(self, audio_path: str) -> str:
         raise NotImplementedError
 
 
