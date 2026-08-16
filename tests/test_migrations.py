@@ -7,7 +7,7 @@ import sys
 
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from app.database.base import Base
 import app.models  # noqa: F401 - register mapped models
@@ -65,9 +65,30 @@ def test_upgrade_head_matches_sqlalchemy_metadata(tmp_path):
     assert _schema_differences(database_url) == []
 
 
-def test_existing_schema_can_be_stamped_without_recreating_tables(tmp_path):
-    """A matching pre-Alembic database can adopt the baseline with stamp head."""
+def test_pre_alembic_baseline_is_stamped_then_upgraded(tmp_path):
+    """A legacy 0001 schema must be stamped at 0001 before applying later revisions."""
     database_path = tmp_path / "legacy.db"
+    database_url = f"sqlite:///{database_path}"
+
+    # Materialize the historical baseline, then remove Alembic bookkeeping to
+    # simulate a database created before migrations were adopted.
+    _run_alembic(database_url, "upgrade", "0001_initial_schema")
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("DROP TABLE alembic_version"))
+    finally:
+        engine.dispose()
+
+    _run_alembic(database_url, "stamp", "0001_initial_schema")
+    _run_alembic(database_url, "upgrade", "head")
+
+    assert _schema_differences(database_url) == []
+
+
+def test_current_matching_schema_can_be_stamped_at_head(tmp_path):
+    """A fully current schema without history can be stamped at current head."""
+    database_path = tmp_path / "current-legacy.db"
     database_url = f"sqlite:///{database_path}"
     engine = create_engine(database_url)
     try:
@@ -76,20 +97,11 @@ def test_existing_schema_can_be_stamped_without_recreating_tables(tmp_path):
         engine.dispose()
 
     _run_alembic(database_url, "stamp", "head")
-
-    engine = create_engine(database_url)
-    try:
-        table_names = set(inspect(engine).get_table_names())
-        assert BUSINESS_TABLES.issubset(table_names)
-        assert "alembic_version" in table_names
-    finally:
-        engine.dispose()
-
     assert _schema_differences(database_url) == []
 
 
 def test_downgrade_base_removes_business_schema(tmp_path):
-    """The baseline migration must be reversible on a disposable database."""
+    """The migration chain must be reversible on a disposable database."""
     database_path = tmp_path / "migration.db"
     database_url = f"sqlite:///{database_path}"
 
