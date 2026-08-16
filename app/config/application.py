@@ -20,7 +20,10 @@ class ApplicationSettings(AMIPBaseSettings):
         default="development-only-secret",
         description="Application secret; production values must be strong and private",
     )
-    HOST: str = Field(default="0.0.0.0", description="Server host")
+    HOST: str = Field(
+        default="127.0.0.1",
+        description="Server bind host; external exposure must be configured explicitly",
+    )
     PORT: int = Field(default=8000, ge=1, le=65535, description="Server port")
 
     @model_validator(mode="after")
