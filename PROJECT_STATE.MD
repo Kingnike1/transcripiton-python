@@ -8,131 +8,108 @@
 **Stack atual:** P0.6 — Lifecycle e configuração  
 **Branch:** `agent/stack-p0-6-lifecycle-config`  
 **Branch base / integração:** `develop`  
-**Head verde de `develop` antes da P0.6:** `5eb893c4014d089902eb507c3055253c65cc4e65`  
-**Status:** P0.1–P0.5 integradas em `develop`; P0.6 em execução
+**PR:** #7  
+**Status:** P0.6 implementada e validada; aguardando quality gate do head documental final antes do merge em `develop`
 
-## Baseline validada
+## Baseline integrada
 
-As stacks P0.1–P0.5 foram integradas sequencialmente em `develop` pelos PRs #2–#6.
+P0.1–P0.5 estão integradas em `develop` pelos PRs #2–#6.
 
-O GitHub Actions executou diretamente no head integrado de `develop` (run #80) com:
+O head `5eb893c4014d089902eb507c3055253c65cc4e65` de `develop` passou no GitHub Actions com:
 
 - 114 testes aprovados;
-- 0 falhas;
 - cobertura total de 87,04%;
 - gate mínimo de 80% aprovado.
 
-O workflow também foi ampliado para `develop`, PRs direcionados a `develop`, `workflow_dispatch`, permissões mínimas e cancelamento de runs redundantes.
-
-`main` permanece fora desta integração até uma futura etapa de release.
+`main` permanece fora da integração até uma etapa futura de release.
 
 ---
 
-## P0.1 — Transações e Unit of Work
+## P0.1–P0.5
 
-**Status:** Integrada em `develop`.
-
-- [x] `SqlAlchemyUnitOfWork`.
-- [x] Service Layer proprietária de commit/rollback.
-- [x] Repositories transaction-neutral.
-- [x] Transições de estado persistentes.
-- [x] Compensação de storage alinhada à transação.
-- [x] Testes e ADR-017.
-- [x] Quality gate.
-- [x] Merge em `develop`.
-
-## P0.2 — Migrations
-
-**Status:** Integrada em `develop`.
-
-- [x] Alembic operacional.
-- [x] Baseline `0001_initial_schema`.
-- [x] SQLite batch migrations.
-- [x] Upgrade/downgrade e verificação de drift.
-- [x] Estratégia de adoção de banco legado.
-- [x] ADR-018.
-- [x] Quality gate e merge.
-
-## P0.3 — Upload streaming
-
-**Status:** Integrada em `develop`.
-
-- [x] Upload em chunks de 1 MiB.
-- [x] Staging temporário e promoção atômica.
-- [x] Limite durante escrita.
-- [x] `ffprobe` para validação e metadados.
-- [x] Migration `0002_audio_media_metadata`.
-- [x] Testes e ADR-019.
-- [x] Quality gate e merge.
-
-## P0.4 — Consistência e concorrência
-
-**Status:** Integrada em `develop`.
-
-- [x] No máximo um áudio ativo por reunião.
-- [x] Índice único parcial `uq_audios_active_meeting`.
-- [x] Migration `0003_one_active_audio_per_meeting` com preflight.
-- [x] Race condition convertida para conflito de domínio.
-- [x] Testes e ADR-020.
-- [x] Quality gate e merge.
-
-## P0.5 — Tratamento seguro de erros
-
-**Status:** Integrada em `develop`.
-
-- [x] Envelope público `status/code/detail/request_id`.
-- [x] `X-Request-ID` em respostas normais e de erro.
-- [x] Detalhes internos removidos de respostas 5xx.
-- [x] Traceback preservado somente nos logs.
-- [x] `HTTPException` e `RequestValidationError` normalizados.
-- [x] `file_path` removido de `AudioResponse`.
-- [x] API/documentação sincronizadas.
-- [x] ADR-021.
-- [x] Quality gate e merge.
+| Stack | Estado |
+|---|---|
+| P0.1 — Unit of Work | Integrada em `develop` |
+| P0.2 — Alembic | Integrada em `develop` |
+| P0.3 — Upload streaming | Integrada em `develop` |
+| P0.4 — Concorrência de áudio | Integrada em `develop` |
+| P0.5 — Erros seguros/request ID | Integrada em `develop` |
 
 ---
 
 ## P0.6 — Lifecycle e configuração
 
-### Objetivo
+### Implementado
 
-Eliminar efeitos colaterais de startup/import, padronizar configuração Pydantic V2 e semântica UTC, corrigir a detecção de processamento obsoleto e impedir configuração insegura em staging/produção.
+- [x] `init_db()` removido do startup/import normal.
+- [x] `Base.metadata.create_all()` removido do fluxo normal da aplicação.
+- [x] Alembic mantido como fonte oficial de schema; deployment usa `alembic upgrade head` explicitamente.
+- [x] FastAPI lifespan criado para lifecycle de recursos.
+- [x] `engine.dispose()` executado no shutdown.
+- [x] `reset_db()` restrito a `development/test`.
+- [x] assinatura moderna de `TemplateResponse`.
+- [x] `AMIPBaseSettings` com `SettingsConfigDict`.
+- [x] settings modulares migrados para Pydantic V2.
+- [x] `MeetingResponse` migrado para `ConfigDict`.
+- [x] `ENVIRONMENT` adicionado (`development/test/staging/production`).
+- [x] staging/produção rejeitam `DEBUG=true`.
+- [x] staging/produção rejeitam `SECRET_KEY` curta/placeholder.
+- [x] `.env.example` atualizado.
+- [x] `utc_now()` criado como relógio comum.
+- [x] usos conhecidos de `datetime.utcnow()` removidos dos models legados.
+- [x] `MeetingService`/`AudioService` alinhados ao relógio comum.
+- [x] `get_stale_processing(minutes)` corrigido para respeitar o limiar.
+- [x] stale query usa `ProcessingStatus` em vez de strings duplicadas.
+- [x] testes de import sem criação de banco.
+- [x] teste de descarte do engine no shutdown.
+- [x] teste de proteção de `reset_db()`.
+- [x] testes de configuração insegura/segura de produção.
+- [x] testes de stale threshold.
+- [x] ADR-022.
+- [x] arquitetura, banco, decisões técnicas e backlog atualizados.
+- [x] PR #7 criado para `develop`.
 
-### Escopo planejado
+### Quality gate
 
-- [ ] Remover `init_db()`/`Base.metadata.create_all()` do startup normal.
-- [ ] Usar lifespan do FastAPI apenas para lifecycle de recursos; migrations continuam externas via Alembic.
-- [ ] Corrigir assinatura depreciada de `TemplateResponse`.
-- [ ] Substituir `datetime.utcnow()` restante por helper UTC comum.
-- [ ] Corrigir `get_stale_processing(minutes)` e usar os estados do enum.
-- [ ] Migrar settings e schemas restantes para Pydantic V2/`ConfigDict`.
-- [ ] Adicionar `ENVIRONMENT` e validação de `DEBUG`/`SECRET_KEY` para staging/produção.
-- [ ] Atualizar `.env.example`.
-- [ ] Adicionar testes de lifecycle, settings, stale processing e regressão.
-- [ ] Registrar decisão em ADR e atualizar arquitetura/backlog/decisões.
-- [ ] Passar no CI e integrar em `develop`.
+Run #113 no commit `993965c6fd5499560f4577f56b1c1524c5de776d`:
 
-### Decisão de lifecycle
+- **122 testes aprovados**;
+- **0 falhas**;
+- **87,29% de cobertura**;
+- gate >=80% aprovado;
+- **0 warnings do pytest**.
 
-A aplicação web **não executará migrations automaticamente ao iniciar**. O schema é responsabilidade do processo de deployment por `alembic upgrade head`. O lifespan será usado apenas para lifecycle de recursos, como startup/shutdown e descarte do engine.
+Os 9 warnings da baseline (Pydantic class-based Config + TemplateResponse legado) foram eliminados.
+
+### Decisão temporal
+
+A aplicação produz timestamps semanticamente em UTC por `utc_now()`. Não foi criada migration apenas para `DateTime(timezone=True)`, pois SQLite não preserva `tzinfo` de forma equivalente a PostgreSQL. Esse ponto será reavaliado junto da migração para PostgreSQL.
+
+### Pendente
+
+- [ ] CI do head final após esta sincronização documental.
+- [ ] marcar PR #7 pronto para review.
+- [ ] merge em `develop`.
+- [ ] CI pós-merge em `develop`.
 
 ---
 
-## Dívidas abertas após P0.6
+## Próxima stack
 
-| Item | Prioridade | Stack |
-|---|---|---|
-| CI ainda sem lint/type/security/migration gates explícitos | Alta | P0.7 |
-| `main` sem proteção obrigatória | Alta | P0.7 |
-| Governança ainda cita Python 3.12+ e formato antigo de commits | Média/Alta | P0.7 |
-| Documentação histórica misturada com ativa | Média | P0.8 |
-| `PROJECT_CONTEXT.md` possui status de features antigos | Média | P0.8 |
-| Fila de jobs em memória | Crítica antes do Whisper | Sprint 6B |
-| `processing_service.py` sem cobertura | Crítica antes de jobs | Sprint 6B |
+**P0.7 — Qualidade e governança**
 
-## Próxima stack após P0.6
+Prioridades:
 
-**P0.7 — Qualidade e governança**, seguida por P0.8 documental e então Sprint 6B — Jobs persistentes.
+- migration check explícito no CI;
+- Ruff;
+- type checking;
+- auditoria de dependências/segurança;
+- proteção de `main`;
+- atualizar governança para GitFlow adaptado + Conventional Commits;
+- alinhar Python documentado com a versão realmente suportada/testada;
+- atualizar actions cujo runtime está em depreciação.
 
-**Document Version:** 2.1  
+Depois: P0.8 documental → Sprint 6B Jobs persistentes.
+
+**Document Version:** 2.2  
 **Status:** Active
