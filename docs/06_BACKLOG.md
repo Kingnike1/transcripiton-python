@@ -98,14 +98,24 @@
 - [ ] Quality gate oficial
 - [ ] Integrar após P0.1/P0.2/P0.3
 
+### Sprint 6A — P0.5 Tratamento seguro de erros
+
+- [x] Remover `str(exc)` do 500 genérico
+- [x] Remover `exc.details` das respostas públicas
+- [x] Preservar detalhes e traceback somente nos logs
+- [x] Gerar `request_id` confiável no servidor
+- [x] Adicionar `X-Request-ID` em respostas normais e de erro
+- [x] Padronizar códigos públicos de erro
+- [x] Normalizar `HTTPException`
+- [x] Normalizar `RequestValidationError` sem ecoar payload
+- [x] Remover `file_path` do `AudioResponse`
+- [x] Adicionar testes contra vazamento de detalhes internos
+- [x] Sincronizar contrato ativo em `docs/03_API.md`
+- [x] Registrar ADR-021
+- [ ] Quality gate oficial
+- [ ] Integrar após P0.1/P0.2/P0.3/P0.4
+
 ## P0 — Estabilização emergencial restante
-
-### P0.5 — Tratamento seguro de erros
-
-- [ ] Remover detalhes internos das respostas genéricas
-- [ ] Adicionar request ID
-- [ ] Padronizar códigos de erro
-- [ ] Remover `file_path` de contratos públicos
 
 ### P0.6 — Lifecycle e configuração
 
@@ -176,6 +186,6 @@
 - [ ] Busca textual
 - [ ] Exportação Markdown, TXT, DOCX e PDF
 
-**Document Version:** 1.5  
+**Document Version:** 1.6  
 **Last Updated:** 2026-08-16  
 **Status:** Active

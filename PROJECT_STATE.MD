@@ -5,11 +5,12 @@
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-16  
 **Sprint atual:** Sprint 6A — Estabilização do Núcleo  
-**Stack em execução:** P0.4 — Consistência e concorrência de áudio  
-**Branch:** `agent/stack-p0-4-audio-concurrency`  
-**Branch base:** `agent/stack-p0-3-streaming-upload`  
+**Stack atual:** P0.5 — Tratamento seguro de erros  
+**Branch:** `agent/stack-p0-5-safe-errors`  
+**Branch base:** `agent/stack-p0-4-audio-concurrency`  
 **Branch de integração:** `develop`  
-**Status:** P0.4 implementada em branch empilhada; integração continua bloqueada pelo quality gate da P0.1
+**PR atual:** #6  
+**Status:** P0.1–P0.5 implementadas em branches empilhadas; integração bloqueada por ausência de quality gate reproduzível
 
 ## Cadeia atual
 
@@ -24,105 +25,121 @@ agent/stack-p0-2-alembic           → PR #3
   ↓
 agent/stack-p0-3-streaming-upload  → PR #4
   ↓
-agent/stack-p0-4-audio-concurrency
+agent/stack-p0-4-audio-concurrency → PR #5
+  ↓
+agent/stack-p0-5-safe-errors       → PR #6
 ```
+
+Todos os PRs permanecem draft. Nenhum deve ser mesclado enquanto o quality gate não for executável no head atual.
+
+---
 
 ## P0.1 — Transações e Unit of Work
 
-- [x] Unit of Work e ownership transacional no Service Layer.
+- [x] `SqlAlchemyUnitOfWork`.
+- [x] Service Layer proprietária de commit/rollback.
 - [x] Repositories transaction-neutral.
 - [x] Transições de estado persistentes.
+- [x] Compensação de storage alinhada à transação.
 - [x] Testes e ADR-017.
-- [ ] Quality gate GitHub Actions no head atual.
+- [ ] GitHub Actions no head atual.
 - [ ] Merge em `develop`.
 
 ## P0.2 — Migrations
 
 - [x] Alembic operacional.
 - [x] Baseline `0001_initial_schema`.
-- [x] Testes de upgrade/drift/stamp/downgrade.
+- [x] SQLite batch migrations.
+- [x] Upgrade/downgrade e verificação de drift.
+- [x] Estratégia de adoção de banco legado.
 - [x] ADR-018.
 - [ ] Quality gate oficial.
 
 ## P0.3 — Upload streaming
 
-- [x] Upload em chunks de 1 MiB.
-- [x] Staging temporário e promoção atômica.
-- [x] Limite aplicado durante escrita.
-- [x] Validação sem carregar arquivo inteiro.
-- [x] `ffprobe` para duração/codec/canais/sample rate.
+- [x] Remoção da leitura integral do upload em RAM.
+- [x] Staging em chunks de 1 MiB.
+- [x] Limite durante escrita.
+- [x] `ffprobe` para validar e extrair metadados.
+- [x] Promoção atômica e limpeza/compensação.
 - [x] Migration `0002_audio_media_metadata`.
 - [x] Testes e ADR-019.
 - [ ] Quality gate oficial.
 
 ## P0.4 — Consistência e concorrência
 
-### Decisão de domínio
+- [x] Regra de no máximo um áudio ativo por reunião.
+- [x] Índice único parcial `uq_audios_active_meeting`.
+- [x] Migration `0003_one_active_audio_per_meeting` com preflight.
+- [x] Race condition traduzida para conflito de domínio.
+- [x] Outros `IntegrityError` não são mascarados.
+- [x] Testes e ADR-020.
+- [ ] Quality gate oficial.
 
-Uma reunião possui no máximo **um áudio ativo** (`deleted_at IS NULL`). Áudios soft-deletados permanecem como histórico e não bloqueiam uma substituição futura.
+## P0.5 — Tratamento seguro de erros
 
-### Implementado
+- [x] Envelope público `status/code/detail/request_id`.
+- [x] `X-Request-ID` em respostas normais e de erro.
+- [x] `str(exc)` e `exc.details` removidos de respostas 5xx.
+- [x] Traceback preservado explicitamente apenas nos logs internos.
+- [x] `HTTPException` e `RequestValidationError` normalizados.
+- [x] `file_path` removido de `AudioResponse`.
+- [x] Testes contra vazamento de SQL, paths e credenciais.
+- [x] ADR-021.
+- [x] `docs/03_API.md` sincronizado com endpoints realmente implementados.
+- [x] Arquitetura, backlog e decisões técnicas sincronizados.
+- [x] PR #6 criado.
+- [ ] Quality gate oficial.
 
-- [x] Índice único parcial `uq_audios_active_meeting` no model.
-- [x] Compatibilidade declarada para SQLite e PostgreSQL.
-- [x] Migration `0003_one_active_audio_per_meeting`.
-- [x] Preflight da migration para detectar duplicidades ativas existentes.
-- [x] Migration falha explicitamente em vez de escolher/apagar dados conflitantes.
-- [x] Pre-check rápido no `AudioService` mantido.
-- [x] Banco atua como última linha de defesa contra race condition.
-- [x] `IntegrityError` específico da constraint é traduzido para `AudioAlreadyExistsError`.
-- [x] Outros erros de integridade não são mascarados.
-- [x] Arquivo promovido é compensado quando a race é perdida antes do commit.
-- [x] Teste do índice: dois ativos rejeitados; histórico soft-deletado permite substituição.
-- [x] Teste da migration com duplicidade preexistente.
-- [x] Testes de tradução de race no Service Layer.
-- [x] ADR-020.
-- [x] Validação independente: `0001 → 0002 → 0003`, zero drift e downgrade completo.
+---
 
-### Estratégia de idempotência
+## Auditoria de fechamento P0.1–P0.5
 
-Nesta fase, repetir um upload já concluído continua retornando conflito. Não será criado `Idempotency-Key` global antes de existir identidade/tenant. A integridade da P0.4 torna retries seguros contra duplicação; idempotência de jobs será tratada na Sprint 6B e idempotência HTTP completa será revisitada após autenticação/organizações.
+### Verificado
 
-## Regra de adoção do Alembic
+- PRs #2, #3, #4 e #5 permanecem abertos, draft e mergeáveis no GitHub.
+- PR #6 foi criado para P0.5.
+- Encadeamento das branches está consistente e cada stack está à frente da anterior sem divergência conhecida.
+- Cadeia Alembic validada independentemente até `0003`, incluindo zero drift contra `Base.metadata` e downgrade em banco descartável.
+- P0.5 teve documentação faltante corrigida durante a auditoria.
+- P0.5 teve um detalhe de observabilidade corrigido: handlers preservam o traceback recebido no logger sem depender de `sys.exc_info()` ativo.
 
-Bancos legados equivalentes à baseline original:
+### Bloqueio objetivo
 
-```text
-backup
-  ↓
-verificar schema 0001
-  ↓
-alembic stamp 0001_initial_schema
-  ↓
-alembic upgrade head
-```
+Consultas aos heads atuais de P0.1, P0.2, P0.3, P0.4 e P0.5 retornaram **zero workflow runs** associados.
 
-A migration `0003` recusará avanço se encontrar mais de um áudio ativo para a mesma reunião.
+Portanto não existe evidência de GitHub Actions para afirmar:
+
+- suíte completa verde no código empilhado atual;
+- cobertura >= 80% no head atual;
+- ausência de regressão entre todas as stacks combinadas.
+
+O último CI confiável continua sendo o da `main` anterior à P0.1.
+
+---
 
 ## Riscos e dívidas abertas
 
 | Item | Prioridade | Estado |
 |---|---|---|
-| CI não dispara para commits feitos pela integração | Crítica para integração | Bloqueando merges |
-| Handler genérico expõe detalhes internos | Alta | P0.5 |
-| `file_path` aparece em resposta pública | Alta | P0.5 |
-| Falta request ID e códigos estáveis de erro | Alta | P0.5 |
-| `init_db()`/`create_all()` participa do startup | Alta | P0.6 |
+| GitHub Actions não executa nos heads empilhados | Crítica | Bloqueando integração |
+| `init_db()`/`create_all()` participa do import/startup | Alta | P0.6 |
 | `datetime.utcnow()` restante | Média/Alta | P0.6 |
+| Pydantic V1-style Config restante | Média | P0.6 |
 | `get_stale_processing(minutes)` ignora `minutes` | Alta | P0.6 |
+| Defaults inseguros de configuração | Alta | P0.6 |
+| CI sem lint/type/security/migration gates | Alta | P0.7 |
 | `main` sem proteção obrigatória | Alta | P0.7 |
-| Limite HTTP ainda não existe no reverse proxy | Alta antes de produção | Deployment/P3 |
+| Documentação histórica ainda misturada com ativa | Média | P0.8 |
 | Fila de jobs em memória | Crítica antes do Whisper | Sprint 6B |
 
-## Próxima Stack Técnica
+## Próxima ação recomendada
 
-**P0.5 — Tratamento seguro de erros**
+**Não iniciar integração nem merge ainda.**
 
-Objetivo: impedir vazamento de informações internas, padronizar códigos de erro/request ID e remover caminhos internos dos contratos públicos.
+Antes de P0.6, a recomendação desta auditoria é antecipar o subconjunto bloqueador da P0.7 necessário para tornar o quality gate reproduzível. Depois de executar a suíte completa sobre o head empilhado e corrigir eventuais regressões, o projeto pode continuar para P0.6 com confiança.
 
-## Regra de integração
+Se for necessário manter desenvolvimento paralelo, P0.6 pode ser criada como branch empilhada sobre P0.5, mas continuará proibida de merge até o gate ser restaurado.
 
-Nenhuma stack empilhada será mesclada em `develop` ou `main` enquanto a P0.1 não possuir quality gate reproduzível.
-
-**Document Version:** 1.8  
+**Document Version:** 2.0  
 **Status:** Active

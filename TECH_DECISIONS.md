@@ -25,6 +25,7 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-017 | Alembic é a fonte oficial de evolução do schema | Accepted |
 | TD-018 | Upload usa staging em chunks e ffprobe | Accepted |
 | TD-019 | Uma reunião possui no máximo um áudio ativo | Accepted |
+| TD-020 | Erros públicos são sanitizados e correlacionados por request ID | Accepted |
 
 ---
 
@@ -61,30 +62,38 @@ Bancos novos usam `alembic upgrade head`. Bancos legados devem ser marcados na r
 **Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-020-one-active-audio-per-meeting.md`
 
-### Contexto
+Uma reunião pode possuir no máximo um `Audio` com `deleted_at IS NULL`. O índice único parcial `uq_audios_active_meeting` é a autoridade final contra concorrência; o pre-check do service continua como otimização. A migration recusa dados legados conflitantes sem apagá-los automaticamente.
 
-O pre-check do `AudioService` evitava duplicidade no caminho comum, mas não era suficiente contra duas requisições concorrentes. Uma `UNIQUE(meeting_id)` simples também seria incompatível com o soft delete, pois impediria substituição futura.
-
-### Decisão
-
-- uma reunião pode ter no máximo um `Audio` com `deleted_at IS NULL`;
-- o model e a migration `0003` usam o índice único parcial `uq_audios_active_meeting`;
-- o pre-check do service permanece como otimização;
-- a constraint do banco é a autoridade final contra races;
-- conflito da constraint é traduzido para `AudioAlreadyExistsError`;
-- outros `IntegrityError` não são mascarados;
-- a migration se recusa a avançar quando já existem duplicidades ativas e nunca apaga dados automaticamente.
-
-### Idempotência
-
-Upload HTTP repetido após sucesso continua retornando conflito. `Idempotency-Key` global foi adiado porque ainda não existe identidade/tenant para escopo seguro. A Sprint 6B implementará idempotência dos jobs; idempotência HTTP completa será revisitada após autenticação/organizações.
-
-### Consequências
-
-A invariável deixa de depender exclusivamente do processo Python e passa a sobreviver a concorrência, múltiplos workers e futuras instâncias. Soft-deleted continua disponível como histórico e não impede um áudio substituto.
+Idempotência HTTP global continua adiada até existir identidade/tenant. A Sprint 6B tratará idempotência de jobs.
 
 ---
 
-**Document Version:** 1.4  
+## TD-020 — Erros públicos são sanitizados e correlacionados por request ID
+
+**Status:** Accepted  
+**Data:** 2026-08-16  
+**ADR:** `docs/adr/ADR-021-public-error-contract.md`
+
+### Contexto
+
+Os handlers anteriores devolviam `exc.details` ao cliente e o erro genérico retornava `str(exc)`. Isso podia revelar SQL, caminhos locais, credenciais ou detalhes de SDK/infraestrutura. O contrato de áudio também expunha `file_path`.
+
+### Decisão
+
+- toda resposta de erro normalizada contém `status`, `code`, `detail` e `request_id`;
+- o servidor gera o `request_id` e também o envia em `X-Request-ID`;
+- `str(exc)`, stack traces e `exc.details` nunca são enviados em respostas 5xx;
+- detalhes técnicos e traceback permanecem nos logs internos associados ao mesmo `request_id`;
+- `HTTPException` e `RequestValidationError` passam pelo mesmo envelope;
+- `file_path` é removido de `AudioResponse` e permanece detalhe interno de storage;
+- mensagens de validação de upload podem ser públicas somente quando representarem feedback seguro sobre a entrada do usuário.
+
+### Consequências
+
+A API ganha um contrato de erro rastreável sem expor infraestrutura. Suporte e observabilidade devem usar `request_id` para correlacionar resposta e logs. Novos endpoints devem reutilizar esse envelope em vez de criar formatos próprios.
+
+---
+
+**Document Version:** 1.5  
 **Last Updated:** 2026-08-16  
 **Status:** Active
