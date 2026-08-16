@@ -1,0 +1,5 @@
+# Quality and security tooling used by CI/development
+ruff==0.16.0
+mypy==2.3.0
+pip-audit==2.10.1
+bandit==1.9.4
