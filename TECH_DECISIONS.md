@@ -27,6 +27,7 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-019 | Uma reunião possui no máximo um áudio ativo | Accepted |
 | TD-020 | Erros públicos são sanitizados e correlacionados por request ID | Accepted |
 | TD-021 | Lifecycle não altera schema; runtime é validado por ambiente | Accepted |
+| TD-022 | CI/Quality bloqueiam regressões e runtime mantém superfície mínima | Accepted |
 
 ---
 
@@ -79,28 +80,50 @@ Toda resposta de erro normalizada contém `status`, `code`, `detail` e `request_
 
 ## TD-021 — Lifecycle não altera schema; runtime é validado por ambiente
 
-**Status:** Accepted  
 **Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-022-lifecycle-runtime-configuration.md`
 
-### Decisão
-
-- importar/iniciar o processo web não executa `Base.metadata.create_all()`;
-- migrations são executadas explicitamente por `alembic upgrade head` fora do processo web;
+- o processo web não cria schema nem executa migrations;
+- Alembic é aplicado explicitamente antes do app;
 - FastAPI lifespan gerencia recursos e descarta o engine no shutdown;
-- `reset_db()` é restrito a `development/test`;
-- settings usam Pydantic V2 com configuração compartilhada;
+- `reset_db()` é restrito a development/test;
+- settings usam Pydantic V2;
 - staging/produção rejeitam debug e segredo fraco;
-- `utc_now()` é o relógio comum do backend;
-- a semântica temporal é UTC sem migration artificial de timezone no SQLite;
-- `get_stale_processing(minutes)` respeita o limiar e usa `ProcessingStatus`.
-
-### Consequências
-
-O deployment precisa aplicar migrations antes do app, mas elimina efeitos colaterais de import e separa claramente runtime de evolução do schema. A fidelidade de timezone de armazenamento será reavaliada com PostgreSQL.
+- `utc_now()` é o relógio comum;
+- `get_stale_processing(minutes)` respeita o limiar.
 
 ---
 
-**Document Version:** 1.6  
+## TD-022 — CI/Quality bloqueiam regressões e runtime mantém superfície mínima
+
+**Status:** Accepted  
+**Data:** 2026-08-16  
+**ADR:** `docs/adr/ADR-023-quality-gates-runtime-dependencies.md`
+
+### Decisão
+
+- Python 3.11 é a baseline mínima e Python 3.12 é compatibilidade obrigatória no CI;
+- `CI` executa a suíte completa com cobertura >=80%;
+- `Quality` executa Ruff (`F`/`E9`), mypy, migrations, Bandit e `pip-audit`;
+- todos esses checks são bloqueantes;
+- `actions/checkout` e `actions/setup-python` usam v6;
+- `requirements.txt` contém apenas runtime ativo;
+- testes/scanners ficam em `requirements-dev.txt`;
+- bibliotecas de exportação não implementadas saem do runtime e retornam apenas quando a Stack correspondente existir;
+- upgrades de segurança são direcionados e sempre passam por regressão completa;
+- o bind padrão é `127.0.0.1`, exigindo configuração explícita para exposição externa;
+- GitFlow adaptado e Conventional Commits são a política oficial.
+
+### Evidência de segurança
+
+A primeira auditoria encontrou 27 advisories em 7 pacotes. Após separar dependências e atualizar o núcleo HTTP/configuração, `pip-audit -r requirements.txt` retornou **No known vulnerabilities found**.
+
+### Limitação administrativa
+
+A proteção da `main` continua desejada, mas a integração GitHub disponível respondeu 403 ao endpoint de branch protection e não expõe ação autorizada para configurar rulesets. Portanto essa proteção permanece como controle administrativo externo pendente e **não deve ser descrita como ativa**.
+
+---
+
+**Document Version:** 1.7  
 **Last Updated:** 2026-08-16  
 **Status:** Active
