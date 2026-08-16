@@ -2,9 +2,9 @@
 
 ## Objetivo
 
-Este documento define as regras obrigatórias de engenharia, Git, qualidade e documentação do AMIP. Antes de qualquer Stack, a equipe deve ler este arquivo, `PROJECT_CONTEXT.md`, `PROJECT_STATE.MD`, `TECH_DECISIONS.md`, arquitetura, banco, API, backlog e ADRs relevantes.
+Este documento define as regras obrigatórias de engenharia, Git, qualidade e documentação do AMIP. Antes de qualquer Stack, a equipe deve ler este arquivo, `PROJECT_CONTEXT.md`, `PROJECT_STATE.MD`, `TECH_DECISIONS.md`, os documentos relevantes em `docs/current/`, o backlog e os ADRs aplicáveis.
 
-A regra central é: **nenhuma implementação começa diretamente pelo código**. Primeiro vem auditoria, análise crítica, plano técnico, riscos, branch e critérios de aceite.
+A regra central é: **nenhuma implementação começa diretamente pelo código**. Primeiro vêm auditoria, análise crítica, plano técnico, riscos, branch e critérios de aceite.
 
 ---
 
@@ -36,7 +36,7 @@ A regra central é: **nenhuma implementação começa diretamente pelo código**
 - Alembic;
 - pytest.
 
-Python 3.11 é a baseline mínima atual. Não declarar `3.12+`, `3.13` ou versões posteriores como suportadas sem CI verde nessa versão.
+Python 3.11 é a baseline mínima atual. Não declarar versões posteriores como suportadas sem CI verde nessa versão.
 
 ### Frontend
 
@@ -66,15 +66,16 @@ Antes de alterar código:
 
 1. verificar `main`, `develop`, branch atual, PRs e CI;
 2. ler governança e estado técnico;
-3. comparar documentação com código real;
-4. definir objetivo, escopo e fora de escopo;
-5. analisar banco, API, services, storage, segurança, performance, concorrência, rollback e compatibilidade;
-6. registrar alternativas e trade-offs;
-7. definir critérios de aceite e testes;
-8. criar branch exclusiva a partir da base correta;
-9. somente então implementar.
+3. ler `docs/README.md` e os documentos `docs/current/` afetados;
+4. comparar documentação com código real;
+5. definir objetivo, escopo e fora de escopo;
+6. analisar banco, API, services, storage, segurança, performance, concorrência, rollback e compatibilidade;
+7. registrar alternativas e trade-offs;
+8. definir critérios de aceite e testes;
+9. criar branch exclusiva a partir da base correta;
+10. somente então implementar.
 
-Quando documentação e código divergirem, a divergência deve ser explicitada e corrigida; documentos antigos não devem ser seguidos cegamente.
+Quando documentação e código divergirem, a divergência deve ser explicitada e corrigida; `docs/roadmap/` e `docs/archive/` nunca substituem a documentação atual.
 
 ---
 
@@ -99,10 +100,9 @@ Branch de integração das Sprints.
 
 ### Branches de Stack
 
-Padrão atual:
+Padrão:
 
 ```text
-agent/stack-p0-7-quality-governance
 agent/stack-p0-8-documentation
 agent/sprint-6b-persistent-jobs
 ```
@@ -121,7 +121,7 @@ Hotfix nasce da `main` e deve retornar também para `develop` quando aplicável.
 
 ## 5. Conventional Commits
 
-Formato padrão:
+Exemplos:
 
 ```text
 feat: add persistent job model
@@ -133,16 +133,7 @@ chore: pin quality tooling
 ci: add migration quality gate
 ```
 
-Tipos preferidos:
-
-- `feat`
-- `fix`
-- `refactor`
-- `test`
-- `docs`
-- `chore`
-- `ci`
-- `perf`
+Tipos preferidos: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`, `perf`.
 
 Commits devem ser pequenos, coerentes e reversíveis. Não usar mensagens genéricas como `update`, `changes` ou `fix stuff`.
 
@@ -152,23 +143,21 @@ Commits devem ser pequenos, coerentes e reversíveis. Não usar mensagens genér
 
 Uma Stack não é concluída apenas porque o código foi escrito.
 
-Antes de merge em `develop`, devem passar os gates aplicáveis:
-
 ### Testes
 
 ```bash
 pytest --cov=app --cov-fail-under=80 tests/
 ```
 
-Cobertura global mínima: **80%**. Cobertura global não substitui testes dos componentes críticos modificados.
+Cobertura global mínima: **80%**.
 
 ### Ruff
 
-Ruff é o linter oficial. A adoção inicial bloqueia erros semânticos/sintáticos (`F`/`E9`). Formatação/import sorting podem ser ampliados de forma incremental para evitar churn cosmético sem valor funcional.
+Ruff é o linter oficial. A adoção inicial bloqueia erros semânticos/sintáticos (`F`/`E9`).
 
 ### mypy
 
-mypy é o type checker oficial inicial. Erros encontrados devem ser corrigidos nos contratos ou justificados tecnicamente; não desativar checks amplos apenas para obter CI verde.
+mypy é o type checker oficial inicial. Erros devem ser corrigidos nos contratos ou justificados tecnicamente; não desativar checks amplos para obter CI verde.
 
 ### Migrations
 
@@ -176,32 +165,23 @@ Toda alteração de schema deve passar os testes de migration e comparação com
 
 ### Segurança estática
 
-Bandit bloqueia achados de severidade média/alta que sejam aplicáveis ao projeto.
+Bandit bloqueia achados de severidade média/alta aplicáveis ao projeto.
 
 ### Dependências
 
-`pip-audit` deve executar no CI. Vulnerabilidades encontradas precisam ser classificadas. Não fazer upgrade amplo/cego de frameworks apenas para zerar scanner; correções devem considerar compatibilidade, exploitabilidade e testes.
+`pip-audit -r requirements.txt` é bloqueante. Vulnerabilidades precisam ser classificadas e corrigidas com análise de compatibilidade; não fazer upgrades amplos/cegos.
 
 ### Compatibilidade Python
 
-Python 3.11 e 3.12 devem permanecer verdes. Nova versão só vira oficialmente suportada depois de adicionada ao gate.
+Python 3.11 e 3.12 devem permanecer verdes.
 
 ---
 
 ## 7. Pull Requests e integração
 
-Cada Stack deve ter PR próprio, salvo dependência técnica inseparável devidamente documentada.
+Cada Stack deve ter PR próprio, salvo dependência técnica inseparável documentada.
 
-PR deve conter:
-
-- objetivo;
-- dependências;
-- escopo entregue;
-- fora de escopo;
-- testes/gates;
-- migrations, quando houver;
-- riscos residuais;
-- documentação/ADR alterados.
+O PR deve informar objetivo, dependências, escopo, fora de escopo, testes/gates, migrations, riscos residuais e documentação alterada.
 
 Fluxo padrão:
 
@@ -216,10 +196,10 @@ CI + Quality
   ↓
 merge em develop
   ↓
-CI pós-merge
+CI + Quality pós-merge
 ```
 
-Promoção para `main` ocorre em release controlada, não automaticamente após cada Stack.
+Promoção para `main` ocorre em release controlada.
 
 ---
 
@@ -229,8 +209,8 @@ Promoção para `main` ocorre em release controlada, não automaticamente após 
 - Alembic é a fonte oficial de schema;
 - Service Layer possui a transação;
 - repositories usam query/add/flush;
-- constraints importantes devem existir no banco, não apenas no Python;
-- migrations destrutivas exigem backup e plano de rollback;
+- constraints importantes devem existir no banco;
+- migrations destrutivas exigem backup e rollback;
 - não apagar dados automaticamente para resolver conflito de migration;
 - `reset_db()` é restrito a desenvolvimento/testes.
 
@@ -241,26 +221,37 @@ Promoção para `main` ocorre em release controlada, não automaticamente após 
 - nunca commitar `.env`, API keys, tokens ou credenciais;
 - staging/produção devem falhar com `DEBUG=true` ou secret inseguro;
 - erros públicos devem ser sanitizados;
-- logs podem conter contexto técnico, mas não secrets/transcrições sensíveis sem necessidade;
+- logs não devem expor secrets/transcrições sensíveis sem necessidade;
 - uploads precisam de limite, validação e storage controlado;
 - autenticação/autorização, rate limit, retenção e LGPD são obrigatórios antes de exposição pública multiusuário.
 
 ---
 
-## 10. Documentação obrigatória
+## 10. Organização da documentação
+
+A partir da P0.8:
+
+- `docs/current/` — **somente implementação atual**;
+- `docs/roadmap/` — direções futuras, explicitamente não implementadas;
+- `docs/archive/` — histórico e documentos superseded;
+- `docs/adr/` — decisões arquiteturais;
+- `docs/06_BACKLOG.md` — backlog operacional;
+- `docs/00_PROJECT_OVERVIEW.md` e `docs/README.md` — visão/mapa.
 
 Atualizar conforme o impacto:
 
 - `PROJECT_STATE.MD` — estado real, branch, PR, CI, riscos e próximo passo;
+- `PROJECT_CONTEXT.md` — visão e capacidade atual;
 - `TECH_DECISIONS.md` — decisão técnica ativa;
 - `docs/06_BACKLOG.md` — concluído/em andamento/pendente;
-- `docs/01_ARCHITECTURE.md` — arquitetura;
-- `docs/02_DATABASE.md` — schema/migrations;
-- `docs/03_API.md` — contrato HTTP real;
-- ADR — decisão arquitetural relevante;
-- demais documentos específicos da área.
+- `docs/current/ARCHITECTURE.md` — arquitetura;
+- `docs/current/DATABASE.md` — schema/migrations;
+- `docs/current/API.md` — contrato HTTP real;
+- `docs/current/DEPLOYMENT.md` — execução/deployment real;
+- `docs/current/CONTRIBUTING.md` — fluxo de contribuição;
+- ADR — decisão arquitetural relevante.
 
-Decisões superseded/deprecated não devem desaparecer sem histórico; marcar o status e preservar a rastreabilidade.
+`docs/roadmap/` nunca deve ser citado como prova de que algo existe. `docs/archive/` não deve orientar implementação nova sem uma nova análise.
 
 ---
 
@@ -275,11 +266,9 @@ Uma Stack só está concluída quando:
 - segurança revisada;
 - documentação sincronizada;
 - estado/backlog/decisões atualizados;
-- PR revisável e mergeado na branch correta;
-- CI pós-merge verde;
+- PR mergeado na branch correta;
+- CI/Quality pós-merge verdes;
 - riscos residuais explicitados.
-
-Se algum gate não puder ser executado, a Stack deve permanecer bloqueada ou registrar claramente a exceção e o responsável pela resolução.
 
 ---
 
@@ -298,6 +287,6 @@ Antes de promover `develop` para `main`:
 
 ---
 
-**Document Version:** 2.0  
+**Document Version:** 2.1  
 **Last Updated:** 2026-08-16  
 **Status:** Active

@@ -2,170 +2,156 @@
 
 ## Concluído
 
-### Fundação e arquitetura
+### Fundação e Sprint 5
 
-- [x] Estrutura FastAPI, SQLAlchemy, Pydantic e Jinja2
+- [x] FastAPI/SQLAlchemy/Pydantic/Jinja2
 - [x] Repository Pattern e Service Layer
-- [x] Pipeline e contratos de providers
-- [x] Configuração e exceções modularizadas
-- [x] Logging centralizado
-- [x] Suíte inicial de testes
+- [x] Configuração/exceções/logging
+- [x] suíte inicial de testes
+- [x] CRUD de reuniões
+- [x] upload/armazenamento inicial de áudio
 
-### Sprint 5 — Upload e armazenamento seguro de áudio
+### Sprint 6A — Estabilização
 
-- [x] AudioRepository
-- [x] AudioService transacional
-- [x] Upload multipart por reunião
-- [x] Consulta de metadados
-- [x] Validação básica de extensão, MIME, tamanho e assinatura
-- [x] Nome físico com UUID
-- [x] Compensação de arquivo em falha de banco
-- [x] Rejeição de upload duplicado
-- [x] CI com cobertura mínima de 80%
+#### P0.1 — Transações e Unit of Work
+- [x] Unit of Work
+- [x] Service Layer dona da transação
+- [x] repositories transaction-neutral
+- [x] transições persistentes
+- [x] ADR-017 + quality gate + merge em `develop`
 
-### Sprint 6A — P0.1 Transações e Unit of Work
+#### P0.2 — Alembic
+- [x] baseline `0001_initial_schema`
+- [x] upgrade/downgrade/drift/stamp
+- [x] ADR-018 + merge
 
-- [x] Unit of Work e ownership transacional no Service Layer
-- [x] Repositories transaction-neutral
-- [x] CRUD/transições persistentes
-- [x] Testes e ADR-017
-- [x] Quality gate e merge em `develop`
+#### P0.3 — Upload streaming
+- [x] chunks/staging/limite
+- [x] `ffprobe`
+- [x] promotion/compensação
+- [x] migration `0002_audio_media_metadata`
+- [x] ADR-019 + merge
 
-### Sprint 6A — P0.2 Migrations com Alembic
+#### P0.4 — Concorrência
+- [x] um áudio ativo por reunião
+- [x] índice único parcial + migration `0003`
+- [x] race tratada no banco/service
+- [x] ADR-020 + merge
 
-- [x] Alembic e baseline `0001_initial_schema`
-- [x] SQLite batch migrations
-- [x] Upgrade/downgrade/drift/stamp testados
-- [x] ADR-018
-- [x] Quality gate e merge em `develop`
+#### P0.5 — Erros seguros
+- [x] envelope público + request ID
+- [x] detalhes internos removidos
+- [x] `file_path` removido da API
+- [x] ADR-021 + merge
 
-### Sprint 6A — P0.3 Upload seguro em streaming
+#### P0.6 — Lifecycle/configuração
+- [x] startup sem `create_all()`
+- [x] lifespan/engine cleanup
+- [x] Pydantic V2/settings seguros
+- [x] UTC/stale-processing
+- [x] ADR-022 + merge
 
-- [x] Upload em chunks/staging
-- [x] Limite durante escrita
-- [x] Validação e `ffprobe`
-- [x] Promoção atômica/compensação
-- [x] Migration `0002_audio_media_metadata`
-- [x] Testes e ADR-019
-- [x] Quality gate e merge em `develop`
-
-### Sprint 6A — P0.4 Consistência e concorrência
-
-- [x] Um áudio ativo por reunião
-- [x] Índice único parcial e migration `0003`
-- [x] Preflight de dados conflitantes
-- [x] Constraint como defesa final contra race
-- [x] Estratégia incremental de idempotência
-- [x] Testes e ADR-020
-- [x] Quality gate e merge em `develop`
-
-### Sprint 6A — P0.5 Tratamento seguro de erros
-
-- [x] Envelope público padronizado
-- [x] request ID / `X-Request-ID`
-- [x] Remover detalhes internos de 5xx
-- [x] Normalizar HTTP/validation errors
-- [x] Remover `file_path` público
-- [x] Testes, API docs e ADR-021
-- [x] Quality gate e merge em `develop`
-
-### Sprint 6A — P0.6 Lifecycle e configuração
-
-- [x] Remover `init_db()`/`create_all()` do startup normal
-- [x] FastAPI lifespan e `engine.dispose()` no shutdown
-- [x] Migrations externas via Alembic
-- [x] `reset_db()` restrito a development/test
-- [x] Pydantic V2/ConfigDict/SettingsConfigDict
-- [x] `ENVIRONMENT`, DEBUG e SECRET_KEY seguros
-- [x] UTC comum e stale-processing corrigido
-- [x] Testes e ADR-022
-- [x] Quality gate: 122 testes, 87,29%, zero warnings no fechamento
-- [x] PR #7 e merge em `develop`
-- [x] CI pós-merge verde
-
-### Sprint 6A — P0.7 Qualidade e governança — EM FECHAMENTO
-
-- [x] `actions/checkout@v6` e `actions/setup-python@v6`
-- [x] CI em `main`, `develop` e `agent/**`
-- [x] PRs para `main`/`develop` e `workflow_dispatch`
-- [x] permissões mínimas e concurrency
-- [x] Python 3.11 baseline + Python 3.12 compatibility gate
-- [x] Ruff bloqueante (`F`/`E9`)
-- [x] mypy bloqueante
-- [x] migration integrity explícito
-- [x] Bandit medium/high bloqueante
-- [x] `pip-audit` runtime bloqueante
-- [x] separar runtime (`requirements.txt`) e ferramentas (`requirements-dev.txt`)
-- [x] remover dependências de exportação ainda não implementadas do runtime
-- [x] remediar 27 advisories encontrados na auditoria inicial
-- [x] runtime auditado: `No known vulnerabilities found`
-- [x] bind seguro padrão `127.0.0.1`
-- [x] TestClient migrado para `httpx2`
-- [x] GitFlow adaptado e Conventional Commits formalizados
-- [x] Python documentado alinhado a 3.11/3.12 realmente testados
-- [x] ADR-023 e decisão técnica
-- [ ] quality gate do head documental final
-- [ ] PR e merge em `develop`
-- [ ] CI/Quality pós-merge
-- [!] proteção da `main`: bloqueada por permissão administrativa da integração (403); controle externo pendente
+#### P0.7 — Qualidade/governança
+- [x] Python 3.11/3.12
+- [x] CI + Quality
+- [x] Ruff/mypy/migrations/Bandit/pip-audit bloqueantes
+- [x] runtime/dev requirements separados
+- [x] 27 advisories iniciais remediados; runtime sem vulnerabilidades conhecidas no fechamento
+- [x] GitFlow adaptado + Conventional Commits
+- [x] ADR-023
+- [x] PR #8 + merge em `develop`
+- [x] CI + Quality pós-merge verdes
+- [!] branch protection da `main` continua controle administrativo externo pendente (integração retornou 403)
 
 ---
 
-## P0 — Estabilização restante
+## P0.8 — Organização documental — IMPLEMENTADA / PR #9
 
-### P0.8 — Documentação
-
-- [ ] Separar documentação atual, roadmap e archive
-- [ ] Sincronizar OpenAPI/documentação ativa
-- [ ] Atualizar `PROJECT_CONTEXT.md` com status real
-- [ ] Arquivar prompts/documentos históricos
-- [ ] Revisar deployment e contributing
+- [x] criar `docs/README.md` como mapa documental
+- [x] criar `docs/current/` para documentação implementada
+- [x] criar `docs/roadmap/` para futuro planejado
+- [x] criar `docs/archive/` para histórico/superseded
+- [x] reescrever arquitetura atual
+- [x] reescrever banco atual
+- [x] mover/sincronizar API atual
+- [x] reescrever deployment de acordo com infraestrutura realmente existente
+- [x] reescrever contributing conforme GitFlow/Quality atuais
+- [x] reescrever roadmap de frontend sem afirmar funcionalidades inexistentes
+- [x] reescrever roadmap de IA com jobs persistentes antes de Whisper
+- [x] atualizar `PROJECT_CONTEXT.md`
+- [x] atualizar `README.md`
+- [x] atualizar `docs/00_PROJECT_OVERVIEW.md`
+- [x] atualizar `PROJECT_GOVERNANCE.md` para a nova taxonomia
+- [x] atualizar `PROJECT_STATE.MD` e backlog após P0.7
+- [x] registrar ADR-024/TD-023 da taxonomia documental
+- [x] remover caminhos antigos/superseded após atualização de referências
+- [x] catalogar materiais históricos em `docs/archive/`
+- [x] adicionar teste que impede retorno de paths superseded
+- [x] adicionar teste de links Markdown locais
+- [x] CI + Quality da branch verdes
+- [x] PR #9 criado para `develop`
+- [ ] CI + Quality do head final do PR #9
+- [ ] merge em `develop`
+- [ ] CI + Quality pós-merge
 
 ---
 
 ## Sprint 6B — Jobs persistentes
 
-**Prioridade:** Crítica antes do Whisper
+**Prioridade:** crítica antes da transcrição real.
 
-- [ ] Criar modelo e repository de jobs
-- [ ] Persistir status, progresso, tentativas e erros
-- [ ] Criar job após upload de áudio
-- [ ] Endpoint para consultar job por reunião
-- [ ] Garantir idempotência
-- [ ] Recuperar jobs interrompidos
-- [ ] Implementar worker separado
-- [ ] Lease, heartbeat, timeout e retry
-- [ ] Testes de concorrência e recuperação
-- [ ] Cobrir `processing_service.py`
+- [ ] criar `ProcessingJob` + migration
+- [ ] repository/service de jobs
+- [ ] estados persistentes, progresso, tentativas e erros
+- [ ] job idempotente após upload
+- [ ] endpoint de acompanhamento por reunião/job
+- [ ] worker separado do processo HTTP
+- [ ] lease/lock e heartbeat
+- [ ] retry com backoff
+- [ ] timeout/cancelamento onde aplicável
+- [ ] recuperação de jobs interrompidos/stale
+- [ ] concorrência e idempotência
+- [ ] cobertura de `processing_service.py`
+- [ ] ADR de arquitetura do worker/queue
 
-## Transcrição
+## Transcrição — depois da Sprint 6B
 
-- [ ] Modelar segmentos de transcrição
-- [ ] Implementar um provider inicial atrás de `ITranscriber`
-- [ ] Executar transcrição fora do request HTTP
-- [ ] Persistir texto, idioma, segmentos e timestamps
-- [ ] Tratar timeout/limites/retry
-- [ ] Exibir transcrição no frontend
+- [ ] modelar segmentos de transcrição
+- [ ] decidir um provider inicial (local **ou** API)
+- [ ] executar via worker
+- [ ] persistir texto/idioma/segmentos/timestamps
+- [ ] timeout/retry
+- [ ] contrato/API de consulta
+- [ ] primeira vertical slice de frontend
 
-## Módulo de áudio — itens restantes
+## Áudio/UI restante
 
-- [ ] UI de upload
-- [ ] Player de áudio
-- [ ] Gravação por microfone
-- [x] Extração de duração
-- [ ] Remoção/substituição controlada de áudio
-- [ ] Download/streaming autenticado
+- [ ] UI de reuniões/upload
+- [ ] player/streaming autenticado
+- [ ] gravação por microfone no navegador
+- [ ] remoção/substituição controlada de áudio
 
-## Fases posteriores
+## Produção e segurança
 
-- [ ] Autenticação e autorização
-- [ ] PostgreSQL para staging/produção multiusuário
-- [ ] Storage remoto quando necessário
-- [ ] Diarização
-- [ ] Análise por LLM
-- [ ] Busca textual
-- [ ] Exportação Markdown, TXT, DOCX e PDF
+- [ ] autenticação/autorização
+- [ ] rate limiting/quotas
+- [ ] PostgreSQL quando staging/produção multiusuário justificar
+- [ ] storage persistente/remoto quando necessário
+- [ ] backups/restore
+- [ ] observabilidade/readiness
+- [ ] políticas de retenção/LGPD
+- [ ] reverse proxy/HTTPS/limite de upload no edge
+- [ ] aplicar branch protection/ruleset na `main` por acesso administrativo
 
-**Document Version:** 1.9  
+## Inteligência e recursos posteriores
+
+- [ ] diarização
+- [ ] análise por LLM
+- [ ] action items estruturados
+- [ ] busca textual
+- [ ] busca semântica somente se justificada
+- [ ] exportação Markdown/TXT/DOCX/PDF
+
+**Document Version:** 2.1  
 **Last Updated:** 2026-08-16  
 **Status:** Active

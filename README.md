@@ -1,109 +1,162 @@
-# AI Meeting Intelligence Platform (AMIP)
+# AMIP — AI Meeting Intelligence Platform
 
-A **AI Meeting Intelligence Platform** is a modular monolithic web application built with **Python (FastAPI)** that processes meeting audio recordings into intelligent insights. It transcribes speech, identifies speakers, and generates AI-powered summaries, action items, and meeting minutes.
+O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões e, progressivamente, transformá-lo em transcrição e inteligência estruturada.
 
-## 🚀 Features
+> **Estado atual:** o backend de reuniões/upload está funcional e a fundação técnica foi estabilizada. Jobs persistentes, transcrição real, diarização e análise por LLM ainda não estão implementados.
 
-- **Audio Management**: Upload and store meeting audio recordings.
-- **Transcription**: Convert audio to text using Whisper.
-- **Speaker Identification**: Diarize audio to identify different speakers using pyannote.audio.
-- **AI Analysis**: Generate summaries, action items, decisions, and risks using LLMs (OpenAI/Ollama).
-- **Export**: Download meeting reports in Markdown, PDF, TXT, or DOCX formats.
+## O que funciona hoje
 
-## 🏗️ Architecture
+- CRUD de reuniões via API;
+- upload de áudio por reunião;
+- streaming/chunks com staging temporário;
+- validação de arquivo e inspeção por `ffprobe`;
+- persistência de metadados técnicos do áudio;
+- Unit of Work e transações no Service Layer;
+- migrations Alembic;
+- proteção contra dois áudios ativos na mesma reunião;
+- erros públicos sanitizados + `X-Request-ID`;
+- lifecycle/configuração seguros;
+- CI/Quality em Python 3.11 e 3.12;
+- Ruff, mypy, migration checks, Bandit e `pip-audit` bloqueantes.
 
-The project follows a **clean monolithic architecture** with clear separation of concerns:
+## Ainda não implementado
 
-- **Presentation Layer**: HTML templates (Jinja2) with Bootstrap 5 and HTMX.
-- **API Layer**: FastAPI for HTTP request handling and routing.
-- **Service Layer**: Business logic encapsulated in services using the **Repository Pattern**.
-- **Data Layer**: SQLAlchemy ORM with SQLite database.
-- **Pipeline Orchestration**: Background tasks for processing audio through the AI pipeline.
+- jobs persistentes e worker recuperável;
+- Whisper/provider real de transcrição;
+- diarização;
+- LLM/resumos/action items;
+- UI completa de reuniões/processamento;
+- autenticação/autorização;
+- busca/exportação;
+- deployment público production-ready.
 
-For detailed architectural decisions, see [TECH_DECISIONS.md](TECH_DECISIONS.md).
+## Arquitetura
 
-## 📁 Project Structure
+```text
+FastAPI
+  ↓
+Application Services
+  ↓
+SqlAlchemyUnitOfWork
+  ↓
+Repositories
+  ↓
+SQLAlchemy / SQLite
 
+Services
+  ↓
+Storage local / ffprobe / providers futuros
 ```
-app/
-├── api/          # FastAPI routes
-├── core/         # Configuration, enums, exceptions
-├── database/     # SQLAlchemy models and repositories
-├── models/       # Database models
-├── schemas/      # Pydantic schemas for validation
-└── services/     # Business logic and pipeline orchestration
-docs/             # Project documentation
-storage/          # Local file storage (audio, transcripts, exports)
-tests/            # Pytest test suite
-```
 
-## 🛠️ Setup & Installation
+O projeto permanece um **monólito modular**. A próxima evolução arquitetural é um worker separado com jobs persistidos, não microservices.
 
-### Prerequisites
+## Setup local
 
-- Python 3.11+
-- Virtual environment tool (venv)
+### Pré-requisitos
 
-### Installation
+- Python 3.11 ou 3.12;
+- Git;
+- `ffprobe` disponível para upload real de áudio.
+
+### Instalação
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+git clone https://github.com/Kingnike1/transcripiton-python.git
 cd transcripiton-python
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m venv .venv
+```
 
-# Install dependencies
-pip install -r requirements.txt
+Ative o ambiente virtual e instale:
 
-# Configure environment variables
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Configure:
+
+```bash
 cp .env.example .env
-# Edit .env with your API keys (OpenAI, Ollama, etc.)
+```
 
-# Run the application
+Crie/atualize o banco:
+
+```bash
+alembic upgrade head
+```
+
+Execute:
+
+```bash
 uvicorn main:app --reload
 ```
 
-The application will be available at `http://localhost:8000`.
+Aplicação:
 
-## 🧪 Testing
-
-The project uses **pytest** for testing with a target coverage of 80%+.
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app tests/
+```text
+http://127.0.0.1:8000
 ```
 
-## 📄 Documentation
+OpenAPI:
 
-- [Project Overview](docs/00_PROJECT_OVERVIEW.md)
-- [Architecture](docs/01_ARCHITECTURE.md)
-- [Database Design](docs/02_DATABASE.md)
-- [API Specification](docs/03_API.md)
-- [Frontend Architecture](docs/04_FRONTEND.md)
-- [AI Pipeline](docs/05_AI_PIPELINE.md)
-- [Product Backlog](docs/06_BACKLOG.md)
-- [Deployment Guide](docs/08_DEPLOYMENT.md)
-- [Contributing Guidelines](docs/09_CONTRIBUTING.md)
+```text
+http://127.0.0.1:8000/docs
+```
 
-## 📝 Technical Decisions
+## Testes e quality
 
-Key architectural decisions are documented in [TECH_DECISIONS.md](TECH_DECISIONS.md).
+```bash
+pytest --cov=app --cov-fail-under=80 tests/
+ruff check app tests main.py
+mypy app main.py
+pytest -q tests/test_migrations.py
+bandit -q -r app -ll
+bandit -q main.py -ll
+pip-audit -r requirements.txt
+```
 
-## 🤝 Contributing
+Os workflows `CI` e `Quality` executam esses gates automaticamente.
 
-See [CONTRIBUTING.md](docs/09_CONTRIBUTING.md) for guidelines on how to contribute to this project.
+## Fluxo Git
 
-## 📜 License
+```text
+main      → release estável
+develop   → integração
+agent/stack-* → trabalho por Stack
+```
 
-This project is licensed under the MIT License.
+Commits seguem Conventional Commits. As regras completas estão em [`PROJECT_GOVERNANCE.md`](PROJECT_GOVERNANCE.md).
 
----
+## Documentação
 
-**Built with ❤️ by Manus AI**
+Comece por [`docs/README.md`](docs/README.md).
+
+### Estado atual
+
+- [Arquitetura](docs/current/ARCHITECTURE.md)
+- [Banco](docs/current/DATABASE.md)
+- [API](docs/current/API.md)
+- [Execução/deployment atual](docs/current/DEPLOYMENT.md)
+- [Contribuição](docs/current/CONTRIBUTING.md)
+
+### Planejamento
+
+- [Backlog](docs/06_BACKLOG.md)
+- [Roadmap de frontend](docs/roadmap/FRONTEND.md)
+- [Roadmap de IA](docs/roadmap/AI_PIPELINE.md)
+
+### Governança e estado
+
+- [Contexto](PROJECT_CONTEXT.md)
+- [Governança](PROJECT_GOVERNANCE.md)
+- [Estado atual](PROJECT_STATE.MD)
+- [Decisões técnicas](TECH_DECISIONS.md)
+- [ADRs](docs/adr/)
+
+## Próxima etapa
+
+Depois da organização documental P0.8, a prioridade técnica é **Sprint 6B — Jobs persistentes**, necessária antes da primeira transcrição real.
+
+## Licença
+
+MIT — consulte [`LICENSE`](LICENSE).
