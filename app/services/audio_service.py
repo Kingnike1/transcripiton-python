@@ -1,6 +1,5 @@
 """Application service for secure meeting audio uploads."""
 
-from datetime import datetime, timezone
 from io import BytesIO
 import math
 from pathlib import Path
@@ -11,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core.enums import ProcessingStatus
+from app.core.time import utc_now
 from app.database.unit_of_work import SqlAlchemyUnitOfWork
 from app.exceptions.audio import (
     AudioAlreadyExistsError,
@@ -122,7 +122,7 @@ class AudioService:
             size_bytes = staged.size_bytes
             staged = None
 
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             duration = (
                 max(0, math.ceil(media.duration_seconds))
                 if media.duration_seconds is not None

@@ -1,13 +1,11 @@
-"""
-Audio configuration module.
-Handles audio processing settings (inspection, transcription, speaker identification).
-"""
+"""Audio inspection and processing configuration."""
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+
+from app.config.base import AMIPBaseSettings
 
 
-class AudioSettings(BaseSettings):
+class AudioSettings(AMIPBaseSettings):
     """Audio processing settings."""
 
     FFPROBE_BINARY: str = Field(
@@ -19,16 +17,14 @@ class AudioSettings(BaseSettings):
         ge=1,
         description="Maximum ffprobe inspection time per upload",
     )
-
     WHISPER_MODEL: str = Field(
         default="base",
-        description="Whisper model size (tiny, base, small, medium, large)",
+        description="Whisper model identifier",
     )
     WHISPER_LANGUAGE: str = Field(
         default="auto",
-        description="Whisper language (auto-detect or specific language code)",
+        description="Whisper language or auto-detect",
     )
-
     PYANNOTE_MODEL: str = Field(
         default="pyannote/speaker-diarization-3.1",
         description="pyannote model identifier",
@@ -37,8 +33,3 @@ class AudioSettings(BaseSettings):
         default="cpu",
         description="Device for pyannote (cpu or cuda)",
     )
-
-    class Config:
-        """Pydantic config."""
-        env_file = ".env"
-        env_file_encoding = "utf-8"

@@ -1,20 +1,9 @@
-"""
-Security configuration module.
-Handles security-related settings (CORS, authentication, etc.).
-"""
+"""Security-related configuration placeholders."""
 
-from pydantic import Field
-from pydantic_settings import BaseSettings
+from app.config.base import AMIPBaseSettings
 
 
-class SecuritySettings(BaseSettings):
-    """Security-related settings."""
+class SecuritySettings(AMIPBaseSettings):
+    """Security settings reserved for authentication/CORS policy."""
 
-    # Future: Add CORS, authentication, and other security settings
-    # This module is prepared for future security implementations
-    # without requiring architectural changes
-
-    class Config:
-        """Pydantic config."""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    pass

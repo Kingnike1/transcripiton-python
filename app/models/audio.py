@@ -6,6 +6,7 @@ from typing import Optional
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.time import utc_now
 from app.database.base import Base
 
 
@@ -24,7 +25,11 @@ class Audio(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    meeting_id: Mapped[int] = mapped_column(Integer, ForeignKey("meetings.id"), nullable=False)
+    meeting_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("meetings.id"),
+        nullable=False,
+    )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(512), nullable=False)
     duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -33,10 +38,8 @@ class Audio(Base):
     codec_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     channels: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sample_rate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     meeting: Mapped["Meeting"] = relationship("Meeting", back_populates="audios")

@@ -26,6 +26,7 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-018 | Upload usa staging em chunks e ffprobe | Accepted |
 | TD-019 | Uma reunião possui no máximo um áudio ativo | Accepted |
 | TD-020 | Erros públicos são sanitizados e correlacionados por request ID | Accepted |
+| TD-021 | Lifecycle não altera schema; runtime é validado por ambiente | Accepted |
 
 ---
 
@@ -58,7 +59,6 @@ Bancos novos usam `alembic upgrade head`. Bancos legados devem ser marcados na r
 
 ## TD-019 — Uma reunião possui no máximo um áudio ativo
 
-**Status:** Accepted  
 **Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-020-one-active-audio-per-meeting.md`
 
@@ -70,30 +70,37 @@ Idempotência HTTP global continua adiada até existir identidade/tenant. A Spri
 
 ## TD-020 — Erros públicos são sanitizados e correlacionados por request ID
 
-**Status:** Accepted  
 **Data:** 2026-08-16  
 **ADR:** `docs/adr/ADR-021-public-error-contract.md`
 
-### Contexto
-
-Os handlers anteriores devolviam `exc.details` ao cliente e o erro genérico retornava `str(exc)`. Isso podia revelar SQL, caminhos locais, credenciais ou detalhes de SDK/infraestrutura. O contrato de áudio também expunha `file_path`.
-
-### Decisão
-
-- toda resposta de erro normalizada contém `status`, `code`, `detail` e `request_id`;
-- o servidor gera o `request_id` e também o envia em `X-Request-ID`;
-- `str(exc)`, stack traces e `exc.details` nunca são enviados em respostas 5xx;
-- detalhes técnicos e traceback permanecem nos logs internos associados ao mesmo `request_id`;
-- `HTTPException` e `RequestValidationError` passam pelo mesmo envelope;
-- `file_path` é removido de `AudioResponse` e permanece detalhe interno de storage;
-- mensagens de validação de upload podem ser públicas somente quando representarem feedback seguro sobre a entrada do usuário.
-
-### Consequências
-
-A API ganha um contrato de erro rastreável sem expor infraestrutura. Suporte e observabilidade devem usar `request_id` para correlacionar resposta e logs. Novos endpoints devem reutilizar esse envelope em vez de criar formatos próprios.
+Toda resposta de erro normalizada contém `status`, `code`, `detail` e `request_id`; `X-Request-ID` acompanha a resposta. Detalhes técnicos permanecem apenas nos logs. `AudioResponse` não expõe `file_path`.
 
 ---
 
-**Document Version:** 1.5  
+## TD-021 — Lifecycle não altera schema; runtime é validado por ambiente
+
+**Status:** Accepted  
+**Data:** 2026-08-16  
+**ADR:** `docs/adr/ADR-022-lifecycle-runtime-configuration.md`
+
+### Decisão
+
+- importar/iniciar o processo web não executa `Base.metadata.create_all()`;
+- migrations são executadas explicitamente por `alembic upgrade head` fora do processo web;
+- FastAPI lifespan gerencia recursos e descarta o engine no shutdown;
+- `reset_db()` é restrito a `development/test`;
+- settings usam Pydantic V2 com configuração compartilhada;
+- staging/produção rejeitam debug e segredo fraco;
+- `utc_now()` é o relógio comum do backend;
+- a semântica temporal é UTC sem migration artificial de timezone no SQLite;
+- `get_stale_processing(minutes)` respeita o limiar e usa `ProcessingStatus`.
+
+### Consequências
+
+O deployment precisa aplicar migrations antes do app, mas elimina efeitos colaterais de import e separa claramente runtime de evolução do schema. A fidelidade de timezone de armazenamento será reavaliada com PostgreSQL.
+
+---
+
+**Document Version:** 1.6  
 **Last Updated:** 2026-08-16  
 **Status:** Active

@@ -1,33 +1,28 @@
-"""
-Logging configuration module.
-Handles logging settings and log file management.
-"""
+"""Logging configuration."""
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+
+from app.config.base import AMIPBaseSettings
 
 
-class LoggingSettings(BaseSettings):
+class LoggingSettings(AMIPBaseSettings):
     """Logging-level settings."""
 
     LOG_LEVEL: str = Field(
         default="INFO",
-        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+        description="Logging level",
     )
     LOG_FILE: str = Field(
         default="./logs/app.log",
-        description="Path to log file"
+        description="Path to the rotating log file",
     )
     LOG_MAX_BYTES: int = Field(
         default=10 * 1024 * 1024,
-        description="Maximum log file size in bytes (10MB default)"
+        gt=0,
+        description="Maximum log file size in bytes",
     )
     LOG_BACKUP_COUNT: int = Field(
         default=5,
-        description="Number of backup log files to keep"
+        ge=0,
+        description="Number of backup log files to keep",
     )
-
-    class Config:
-        """Pydantic config."""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
