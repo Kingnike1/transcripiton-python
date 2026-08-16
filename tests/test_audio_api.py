@@ -41,10 +41,13 @@ def test_upload_and_get_audio_metadata(client, db_session, tmp_path):
     assert body["audio"]["codec_name"] == "pcm_s16le"
     assert body["audio"]["channels"] == 1
     assert body["audio"]["sample_rate"] == 16000
+    assert "file_path" not in body["audio"]
 
     metadata = client.get(f"/api/meetings/{meeting.id}/audio")
     assert metadata.status_code == 200
-    assert metadata.json()["file_size"] == len(wav_bytes())
+    metadata_body = metadata.json()
+    assert metadata_body["file_size"] == len(wav_bytes())
+    assert "file_path" not in metadata_body
 
 
 def test_upload_to_unknown_meeting_returns_404(client, db_session, tmp_path):
@@ -57,6 +60,8 @@ def test_upload_to_unknown_meeting_returns_404(client, db_session, tmp_path):
         files={"file": ("meeting.wav", wav_bytes(), "audio/wav")},
     )
     assert response.status_code == 404
+    assert response.json()["code"] == "NOT_FOUND"
+    assert response.json()["request_id"] == response.headers["X-Request-ID"]
 
 
 def test_duplicate_upload_returns_409(client, db_session, tmp_path):
@@ -70,3 +75,5 @@ def test_duplicate_upload_returns_409(client, db_session, tmp_path):
     assert client.post(f"/api/meetings/{meeting.id}/audio", files=files).status_code == 201
     response = client.post(f"/api/meetings/{meeting.id}/audio", files=files)
     assert response.status_code == 409
+    assert response.json()["code"] == "CONFLICT"
+    assert response.json()["request_id"] == response.headers["X-Request-ID"]
