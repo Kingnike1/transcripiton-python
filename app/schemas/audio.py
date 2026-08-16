@@ -16,6 +16,9 @@ class AudioResponse(BaseModel):
     file_size: Optional[int]
     mime_type: Optional[str]
     duration: Optional[int]
+    codec_name: Optional[str]
+    channels: Optional[int]
+    sample_rate: Optional[int]
     created_at: datetime
 
 
