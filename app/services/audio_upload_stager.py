@@ -33,11 +33,17 @@ class AudioUploadStager:
         self.storage = storage
         self.chunk_size = chunk_size
 
-    def stage(self, stream: BinaryIO, max_size: int) -> StagedAudioUpload:
+    def stage(
+        self,
+        stream: BinaryIO,
+        max_size: int,
+        original_name: str,
+    ) -> StagedAudioUpload:
         """Copy a binary stream to temporary storage while enforcing max size."""
         temp_dir = self.storage.get_path(StorageService.TEMP_DIR)
         temp_dir.mkdir(parents=True, exist_ok=True)
-        temp_path = temp_dir / f"{uuid4()}.upload"
+        extension = Path(original_name).suffix.lower()
+        temp_path = temp_dir / f"{uuid4()}.staged{extension}"
         total = 0
 
         try:
