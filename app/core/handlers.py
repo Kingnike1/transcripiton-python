@@ -1,12 +1,14 @@
 """Global exception handlers with sanitized public responses."""
 
 import logging
-from typing import Optional
+from types import TracebackType
+from typing import Awaitable, Callable, Optional, cast
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
 from app.core.request_context import REQUEST_ID_HEADER, get_request_id
 from app.exceptions import (
@@ -35,20 +37,42 @@ HTTP_ERROR_CODES = {
     503: "SERVICE_UNAVAILABLE",
 }
 
+StarletteExceptionHandler = Callable[[Request, Exception], Response | Awaitable[Response]]
+
+
+def _starlette_handler(handler: Callable[..., Awaitable[JSONResponse]]) -> StarletteExceptionHandler:
+    """Adapt typed handlers to Starlette's intentionally generic handler signature."""
+    return cast(StarletteExceptionHandler, handler)
+
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """Register exception handlers from most specific to most general."""
-    app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
-    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
-    app.add_exception_handler(ValidationError, validation_exception_handler)
-    app.add_exception_handler(DatabaseError, database_exception_handler)
-    app.add_exception_handler(AudioUploadError, audio_upload_exception_handler)
-    app.add_exception_handler(AudioError, audio_exception_handler)
-    app.add_exception_handler(PipelineError, pipeline_exception_handler)
-    app.add_exception_handler(StorageError, storage_exception_handler)
-    app.add_exception_handler(ExportError, export_exception_handler)
-    app.add_exception_handler(AMIPError, amip_exception_handler)
-    app.add_exception_handler(Exception, generic_exception_handler)
+    """Register handlers from most specific to most general."""
+    app.add_exception_handler(
+        RequestValidationError,
+        _starlette_handler(request_validation_exception_handler),
+    )
+    app.add_exception_handler(
+        StarletteHTTPException,
+        _starlette_handler(http_exception_handler),
+    )
+    app.add_exception_handler(
+        ValidationError,
+        _starlette_handler(validation_exception_handler),
+    )
+    app.add_exception_handler(
+        DatabaseError,
+        _starlette_handler(database_exception_handler),
+    )
+    app.add_exception_handler(
+        AudioUploadError,
+        _starlette_handler(audio_upload_exception_handler),
+    )
+    app.add_exception_handler(AudioError, _starlette_handler(audio_exception_handler))
+    app.add_exception_handler(PipelineError, _starlette_handler(pipeline_exception_handler))
+    app.add_exception_handler(StorageError, _starlette_handler(storage_exception_handler))
+    app.add_exception_handler(ExportError, _starlette_handler(export_exception_handler))
+    app.add_exception_handler(AMIPError, _starlette_handler(amip_exception_handler))
+    app.add_exception_handler(Exception, _starlette_handler(generic_exception_handler))
 
 
 def _error_response(
@@ -58,7 +82,7 @@ def _error_response(
     code: str,
     detail: str,
 ) -> JSONResponse:
-    """Build the only public error envelope used by application handlers."""
+    """Build the public error envelope without exposing internal details."""
     request_id = get_request_id(request)
     return JSONResponse(
         status_code=status_code,
@@ -73,19 +97,20 @@ def _error_response(
 
 
 def _log_context(request: Request) -> dict[str, str]:
-    """Return correlation metadata for structured log records."""
     return {"request_id": get_request_id(request)}
 
 
-def _exc_info(exc: BaseException) -> tuple[type[BaseException], BaseException, Optional[object]]:
-    """Preserve the received exception traceback even outside an active except block."""
+def _exc_info(
+    exc: BaseException,
+) -> tuple[type[BaseException], BaseException, Optional[TracebackType]]:
+    """Preserve a received traceback even outside an active ``except`` block."""
     return (type(exc), exc, exc.__traceback__)
 
 
 async def request_validation_exception_handler(
-    request: Request, exc: RequestValidationError
+    request: Request,
+    exc: RequestValidationError,
 ) -> JSONResponse:
-    """Hide raw request payload/validation internals from the public response."""
     logger.warning(
         "Request validation failed: %s",
         exc.errors(),
@@ -100,9 +125,9 @@ async def request_validation_exception_handler(
 
 
 async def http_exception_handler(
-    request: Request, exc: StarletteHTTPException
+    request: Request,
+    exc: StarletteHTTPException,
 ) -> JSONResponse:
-    """Normalize explicit HTTP errors while preserving safe string details."""
     public_detail = exc.detail if isinstance(exc.detail, str) else "Request failed"
     return _error_response(
         request,
@@ -113,7 +138,8 @@ async def http_exception_handler(
 
 
 async def validation_exception_handler(
-    request: Request, exc: ValidationError
+    request: Request,
+    exc: ValidationError,
 ) -> JSONResponse:
     logger.warning(
         "Validation error: %s; internal_details=%s",
@@ -130,7 +156,8 @@ async def validation_exception_handler(
 
 
 async def database_exception_handler(
-    request: Request, exc: DatabaseError
+    request: Request,
+    exc: DatabaseError,
 ) -> JSONResponse:
     logger.error(
         "Database error: %s; internal_details=%s",
@@ -148,9 +175,9 @@ async def database_exception_handler(
 
 
 async def audio_upload_exception_handler(
-    request: Request, exc: AudioUploadError
+    request: Request,
+    exc: AudioUploadError,
 ) -> JSONResponse:
-    """Upload/format messages are validation feedback and safe to expose."""
     logger.warning(
         "Audio upload rejected: %s; internal_details=%s",
         exc.message,
@@ -165,9 +192,7 @@ async def audio_upload_exception_handler(
     )
 
 
-async def audio_exception_handler(
-    request: Request, exc: AudioError
-) -> JSONResponse:
+async def audio_exception_handler(request: Request, exc: AudioError) -> JSONResponse:
     logger.error(
         "Audio error: %s; internal_details=%s",
         exc.message,
@@ -183,9 +208,7 @@ async def audio_exception_handler(
     )
 
 
-async def pipeline_exception_handler(
-    request: Request, exc: PipelineError
-) -> JSONResponse:
+async def pipeline_exception_handler(request: Request, exc: PipelineError) -> JSONResponse:
     logger.error(
         "Pipeline error: %s; internal_details=%s",
         exc.message,
@@ -201,9 +224,7 @@ async def pipeline_exception_handler(
     )
 
 
-async def storage_exception_handler(
-    request: Request, exc: StorageError
-) -> JSONResponse:
+async def storage_exception_handler(request: Request, exc: StorageError) -> JSONResponse:
     logger.error(
         "Storage error: %s; internal_details=%s",
         exc.message,
@@ -219,9 +240,7 @@ async def storage_exception_handler(
     )
 
 
-async def export_exception_handler(
-    request: Request, exc: ExportError
-) -> JSONResponse:
+async def export_exception_handler(request: Request, exc: ExportError) -> JSONResponse:
     logger.error(
         "Export error: %s; internal_details=%s",
         exc.message,
@@ -237,9 +256,7 @@ async def export_exception_handler(
     )
 
 
-async def amip_exception_handler(
-    request: Request, exc: AMIPError
-) -> JSONResponse:
+async def amip_exception_handler(request: Request, exc: AMIPError) -> JSONResponse:
     logger.error(
         "AMIP error: %s; internal_details=%s",
         exc.message,
@@ -255,9 +272,7 @@ async def amip_exception_handler(
     )
 
 
-async def generic_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
+async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Never expose exception strings, paths, SQL, credentials, or SDK details."""
     logger.error(
         "Unhandled exception",
