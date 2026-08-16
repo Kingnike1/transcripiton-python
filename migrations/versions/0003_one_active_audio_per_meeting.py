@@ -18,6 +18,25 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Allow only one non-deleted audio row for each meeting."""
+    connection = op.get_bind()
+    duplicates = connection.execute(
+        sa.text(
+            """
+            SELECT meeting_id, COUNT(*) AS active_count
+            FROM audios
+            WHERE deleted_at IS NULL
+            GROUP BY meeting_id
+            HAVING COUNT(*) > 1
+            """
+        )
+    ).fetchall()
+    if duplicates:
+        meeting_ids = ", ".join(str(row[0]) for row in duplicates)
+        raise RuntimeError(
+            "Cannot enforce one active audio per meeting; duplicate active audios "
+            f"exist for meeting IDs: {meeting_ids}"
+        )
+
     op.create_index(
         "uq_audios_active_meeting",
         "audios",
