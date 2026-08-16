@@ -1,18 +1,15 @@
-"""
-Meeting API routes.
-Handles HTTP requests for meeting operations.
-All business logic is delegated to MeetingService.
-"""
+"""HTTP routes for meeting operations."""
 
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import get_meeting_service
 from app.schemas.meeting import (
     MeetingCreate,
-    MeetingUpdate,
-    MeetingResponse,
     MeetingListResponse,
+    MeetingResponse,
+    MeetingUpdate,
 )
 from app.services.meeting_service import MeetingService
 
@@ -25,27 +22,17 @@ def list_meetings(
     limit: int = Query(10, ge=1, le=100, description="Number of records to return"),
     search: Optional[str] = Query(None, description="Search term for title/description"),
     service: MeetingService = Depends(get_meeting_service),
-):
-    """List all meetings with optional search and pagination.
-    
-    Args:
-        skip: Number of records to skip
-        limit: Number of records to return
-        search: Search term for title/description
-        service: Meeting service dependency
-        
-    Returns:
-        MeetingListResponse with meetings and metadata
-    """
+) -> MeetingListResponse:
+    """List active meetings with optional search and pagination."""
     if search:
         meetings = service.search(search, skip=skip, limit=limit)
         total = service.count_search(search)
     else:
         meetings = service.get_all(skip=skip, limit=limit)
         total = service.count()
-    
+
     return MeetingListResponse(
-        data=meetings,
+        data=[MeetingResponse.model_validate(meeting) for meeting in meetings],
         total=total,
         skip=skip,
         limit=limit,
@@ -57,23 +44,10 @@ def get_meeting(
     meeting_id: int,
     service: MeetingService = Depends(get_meeting_service),
 ):
-    """Get a meeting by ID.
-    
-    Args:
-        meeting_id: Meeting ID
-        service: Meeting service dependency
-        
-    Returns:
-        MeetingResponse with meeting details
-        
-    Raises:
-        HTTPException: 404 if meeting not found
-    """
+    """Return one active meeting or 404."""
     meeting = service.get_by_id(meeting_id)
-    
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    
     return meeting
 
 
@@ -82,23 +56,11 @@ def create_meeting(
     meeting: MeetingCreate,
     service: MeetingService = Depends(get_meeting_service),
 ):
-    """Create a new meeting.
-    
-    Args:
-        meeting: Meeting creation data
-        service: Meeting service dependency
-        
-    Returns:
-        MeetingResponse with created meeting
-        
-    Raises:
-        HTTPException: 400 if title is invalid
-    """
+    """Create a new meeting."""
     try:
-        created_meeting = service.create(meeting)
-        return created_meeting
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return service.create(meeting)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/{meeting_id}", response_model=MeetingResponse)
@@ -107,24 +69,10 @@ def update_meeting(
     meeting: MeetingUpdate,
     service: MeetingService = Depends(get_meeting_service),
 ):
-    """Update an existing meeting.
-    
-    Args:
-        meeting_id: Meeting ID to update
-        meeting: Meeting update data
-        service: Meeting service dependency
-        
-    Returns:
-        MeetingResponse with updated meeting
-        
-    Raises:
-        HTTPException: 404 if meeting not found
-    """
+    """Update an active meeting or 404."""
     updated_meeting = service.update(meeting_id, meeting)
-    
     if not updated_meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    
     return updated_meeting
 
 
@@ -132,17 +80,7 @@ def update_meeting(
 def delete_meeting(
     meeting_id: int,
     service: MeetingService = Depends(get_meeting_service),
-):
-    """Soft delete a meeting.
-    
-    Args:
-        meeting_id: Meeting ID to delete
-        service: Meeting service dependency
-        
-    Raises:
-        HTTPException: 404 if meeting not found
-    """
-    deleted = service.delete(meeting_id)
-    
-    if not deleted:
+) -> None:
+    """Soft-delete an active meeting or 404."""
+    if not service.delete(meeting_id):
         raise HTTPException(status_code=404, detail="Meeting not found")
