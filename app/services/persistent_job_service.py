@@ -61,9 +61,18 @@ class PersistentJobService:
     def get_jobs_by_meeting(self, meeting_id: int) -> list[ProcessingJob]:
         return self.repository.get_by_meeting(meeting_id)
 
-    def claim_next(self, worker_id: str, lease_seconds: int = 60) -> Optional[ProcessingJob]:
+    def claim_next(
+        self,
+        worker_id: str,
+        lease_seconds: int = 60,
+        job_type: JobType | None = None,
+    ) -> Optional[ProcessingJob]:
         with self.uow.transaction():
-            job = self.repository.claim_next(worker_id=worker_id, lease_seconds=lease_seconds)
+            job = self.repository.claim_next(
+                worker_id=worker_id,
+                lease_seconds=lease_seconds,
+                job_type=job_type,
+            )
         return job
 
     def heartbeat(self, job_id: str, worker_id: str) -> bool:
