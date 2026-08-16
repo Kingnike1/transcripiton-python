@@ -17,145 +17,135 @@
 - [x] AudioService transacional
 - [x] Upload multipart por reunião
 - [x] Consulta de metadados
-- [x] Validação de extensão, MIME, tamanho e assinatura binária básica
+- [x] Validação básica de extensão, MIME, tamanho e assinatura
 - [x] Nome físico com UUID
 - [x] Compensação de arquivo em falha de banco
 - [x] Rejeição de upload duplicado
-- [x] Testes unitários e de integração
 - [x] CI com cobertura mínima de 80%
 
 ### Sprint 6A — P0.1 Transações e Unit of Work
 
-- [x] Criar `SqlAlchemyUnitOfWork`
-- [x] Definir Service Layer como proprietária de commit/rollback
-- [x] Tornar repositories transaction-neutral
-- [x] Migrar CRUD do `MeetingService` para Unit of Work
-- [x] Persistir transições de status em banco
-- [x] Migrar `AudioService` para a mesma política transacional
-- [x] Testar commit, rollback e persistência em nova sessão
-- [x] Testar compensação do storage quando commit falha
-- [x] Registrar ADR da decisão
-- [ ] Quality gate final e merge em `develop`
+- [x] `SqlAlchemyUnitOfWork`
+- [x] Service Layer proprietária de commit/rollback
+- [x] Repositories transaction-neutral
+- [x] CRUD e transições persistentes
+- [x] Testes e ADR-017
+- [x] Quality gate
+- [x] Merge em `develop`
 
 ### Sprint 6A — P0.2 Migrations com Alembic
 
-- [x] Inicializar Alembic
-- [x] Criar `alembic.ini` e ambiente de migrations
-- [x] Criar baseline `0001_initial_schema`
-- [x] Configurar SQLite batch migrations
-- [x] Usar `settings.DATABASE_URL` como fonte de configuração
-- [x] Validar `upgrade head` em banco vazio
-- [x] Comparar schema migrado com `Base.metadata`
-- [x] Validar adoção segura de banco legado por baseline + upgrade
-- [x] Validar `downgrade base` em banco descartável
-- [x] Registrar ADR-018
-- [x] Atualizar documentação de banco
-- [ ] Quality gate oficial
-- [ ] Integrar após P0.1
+- [x] Alembic e baseline `0001_initial_schema`
+- [x] SQLite batch migrations
+- [x] Upgrade/downgrade/drift/stamp testados
+- [x] ADR-018
+- [x] Quality gate
+- [x] Merge em `develop`
 
 ### Sprint 6A — P0.3 Upload seguro em streaming
 
-- [x] Remover `await file.read()` do endpoint de upload
-- [x] Ler `UploadFile.file` em chunks de 1 MiB
-- [x] Executar pipeline síncrono de filesystem via threadpool
-- [x] Limitar tamanho durante a escrita
-- [x] Usar `storage/temp` para staging
-- [x] Preservar extensão no arquivo temporário
-- [x] Validar nome, MIME, tamanho e assinatura sem materializar o arquivo completo
-- [x] Rejeitar path traversal
-- [x] Inspecionar container com `ffprobe`
-- [x] Validar presença de stream de áudio
-- [x] Extrair duração, codec, canais e sample rate
-- [x] Promover arquivo validado atomicamente com `os.replace`
-- [x] Limpar temporários em erro
-- [x] Compensar arquivo final em falha de banco
-- [x] Adicionar migration `0002_audio_media_metadata`
-- [x] Persistir metadados técnicos
-- [x] Tratar ausência de `ffprobe` como indisponibilidade do servidor
-- [x] Adicionar testes de chunking, limite, limpeza, inspector e migrations
-- [x] Registrar ADR-019
-- [ ] Quality gate oficial
-- [ ] Integrar após P0.1/P0.2
+- [x] Remover leitura integral do arquivo em RAM
+- [x] Chunks de 1 MiB e staging temporário
+- [x] Limite durante escrita
+- [x] Validação de path/MIME/assinatura
+- [x] `ffprobe` para stream/duração/codec/canais/sample rate
+- [x] Promoção atômica e compensação
+- [x] Migration `0002_audio_media_metadata`
+- [x] Testes e ADR-019
+- [x] Quality gate
+- [x] Merge em `develop`
 
 ### Sprint 6A — P0.4 Consistência e concorrência
 
-- [x] Formalizar uma reunião → no máximo um áudio ativo
-- [x] Manter soft-deleted como histórico substituível
-- [x] Criar índice único parcial `uq_audios_active_meeting`
-- [x] Adicionar migration `0003_one_active_audio_per_meeting`
-- [x] Detectar duplicidades legadas antes de criar o índice
-- [x] Falhar migration explicitamente sem apagar dados conflitantes
-- [x] Manter pre-check rápido no Service Layer
-- [x] Usar constraint do banco como defesa contra race condition
-- [x] Traduzir conflito específico para `AudioAlreadyExistsError`
-- [x] Não mascarar outros `IntegrityError`
-- [x] Compensar storage quando a race é perdida
-- [x] Testar dois áudios ativos versus histórico soft-deletado
-- [x] Testar migration com dados conflitantes
-- [x] Definir estratégia de idempotência incremental
-- [x] Registrar ADR-020
-- [x] Validar migration `0003` com zero drift e downgrade
-- [ ] Quality gate oficial
-- [ ] Integrar após P0.1/P0.2/P0.3
+- [x] Um áudio ativo por reunião
+- [x] Índice único parcial `uq_audios_active_meeting`
+- [x] Migration `0003_one_active_audio_per_meeting`
+- [x] Preflight de dados legados conflitantes
+- [x] Constraint como defesa final contra race
+- [x] Tradução específica de conflito no Service Layer
+- [x] Estratégia incremental de idempotência
+- [x] Testes e ADR-020
+- [x] Quality gate
+- [x] Merge em `develop`
 
 ### Sprint 6A — P0.5 Tratamento seguro de erros
 
-- [x] Remover `str(exc)` do 500 genérico
-- [x] Remover `exc.details` das respostas públicas
-- [x] Preservar detalhes e traceback somente nos logs
-- [x] Gerar `request_id` confiável no servidor
-- [x] Adicionar `X-Request-ID` em respostas normais e de erro
-- [x] Padronizar códigos públicos de erro
-- [x] Normalizar `HTTPException`
-- [x] Normalizar `RequestValidationError` sem ecoar payload
-- [x] Remover `file_path` do `AudioResponse`
-- [x] Adicionar testes contra vazamento de detalhes internos
-- [x] Sincronizar contrato ativo em `docs/03_API.md`
-- [x] Registrar ADR-021
-- [ ] Quality gate oficial
-- [ ] Integrar após P0.1/P0.2/P0.3/P0.4
+- [x] Envelope público padronizado
+- [x] `request_id` e `X-Request-ID`
+- [x] Remover detalhes internos de 5xx
+- [x] Normalizar `HTTPException`/`RequestValidationError`
+- [x] Remover `file_path` do contrato público
+- [x] Testes contra vazamento
+- [x] `docs/03_API.md` sincronizado
+- [x] ADR-021
+- [x] Quality gate
+- [x] Merge em `develop`
+
+### P0.7 — itens antecipados para restaurar o gate
+
+- [x] CI executa em `develop`
+- [x] PRs para `develop` disparam CI
+- [x] `workflow_dispatch` disponível
+- [x] permissões do workflow reduzidas a leitura
+- [x] cancelamento de runs redundantes por concurrency
+- [x] `develop` integrada validada: 114 testes, 87,04% de cobertura
+
+---
 
 ## P0 — Estabilização emergencial restante
 
-### P0.6 — Lifecycle e configuração
+### P0.6 — Lifecycle e configuração — EM EXECUÇÃO
 
-- [ ] Mover inicialização para lifespan do FastAPI
-- [ ] Remover ocorrências restantes de `datetime.utcnow()`
-- [ ] Concluir migração para Pydantic V2/`ConfigDict`
-- [ ] Validar secrets e DEBUG por ambiente
+- [ ] Remover `init_db()`/`create_all()` do startup normal
+- [ ] Implementar lifespan de recursos no FastAPI
+- [ ] Manter migrations fora do processo web via Alembic
+- [ ] Corrigir `TemplateResponse` depreciado
+- [ ] Eliminar `datetime.utcnow()` restante
+- [ ] Padronizar helper de UTC
 - [ ] Corrigir `get_stale_processing(minutes)`
-- [ ] Retirar `Base.metadata.create_all()` do fluxo normal depois da adoção do Alembic
+- [ ] Usar `ProcessingStatus` no stale query
+- [ ] Migrar settings para `SettingsConfigDict`
+- [ ] Migrar schemas restantes para `ConfigDict`
+- [ ] Validar `ENVIRONMENT`, `DEBUG` e `SECRET_KEY`
+- [ ] Atualizar `.env.example`
+- [ ] Testar import sem criação de schema, settings e stale threshold
+- [ ] ADR/documentação/CI/merge em `develop`
 
 ### P0.7 — Qualidade e governança
 
-- [ ] Expandir CI para `develop` e branches de stack
-- [ ] Resolver disparo do GitHub Actions para o fluxo atual de integração
+- [x] Expandir CI para `develop`
+- [x] Resolver disparo do Actions no fluxo atual
 - [ ] Adicionar verificação explícita de migrations ao CI
 - [ ] Adicionar Ruff
 - [ ] Adicionar type checking
 - [ ] Adicionar auditoria de dependências e segurança
+- [ ] Atualizar actions com runtime não depreciado quando versões estáveis forem definidas
 - [ ] Proteger `main`
 - [ ] Formalizar GitFlow adaptado e Conventional Commits na governança
+- [ ] Alinhar versão de Python documentada com a suportada/testada
 
 ### P0.8 — Documentação
 
 - [ ] Separar documentação atual, roadmap e archive
-- [ ] Sincronizar contrato da API com OpenAPI real
+- [ ] Sincronizar OpenAPI/documentação ativa
+- [ ] Atualizar `PROJECT_CONTEXT.md` com status real das features
 - [ ] Arquivar prompts e documentos históricos obsoletos
 - [ ] Revisar deployment e contributing
+
+---
 
 ## Sprint 6B — Jobs persistentes
 
 **Prioridade:** Crítica antes do Whisper
 
 - [ ] Criar modelo e repository de jobs
-- [ ] Persistir status, progresso e mensagem de erro
+- [ ] Persistir status, progresso, tentativas e erros
 - [ ] Criar job após upload de áudio
 - [ ] Endpoint para consultar job por reunião
 - [ ] Garantir idempotência
 - [ ] Recuperar jobs interrompidos
 - [ ] Implementar worker separado
-- [ ] Implementar lease, heartbeat, timeout e retry
+- [ ] Lease, heartbeat, timeout e retry
 - [ ] Testes de concorrência e recuperação
 
 ## Transcrição
@@ -174,7 +164,7 @@
 - [ ] Gravação por microfone
 - [x] Extração de duração
 - [ ] Remoção/substituição controlada de áudio
-- [ ] Download ou streaming autenticado
+- [ ] Download/streaming autenticado
 
 ## Fases posteriores
 
@@ -186,6 +176,6 @@
 - [ ] Busca textual
 - [ ] Exportação Markdown, TXT, DOCX e PDF
 
-**Document Version:** 1.6  
+**Document Version:** 1.7  
 **Last Updated:** 2026-08-16  
 **Status:** Active
