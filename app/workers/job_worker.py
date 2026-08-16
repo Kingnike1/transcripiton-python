@@ -42,20 +42,28 @@ class JobWorker:
         self.handlers[job_type] = handler
 
     def run_once(self) -> bool:
-        """Claim and process at most one job. Return whether work was claimed."""
+        """Claim and process at most one supported job."""
+        if not self.handlers:
+            return False
+
         session = self.session_factory()
         try:
             service = PersistentJobService(session)
-            job = service.claim_next(self.worker_id, lease_seconds=self.lease_seconds)
+            job: ProcessingJob | None = None
+            for job_type in self.handlers:
+                job = service.claim_next(
+                    self.worker_id,
+                    lease_seconds=self.lease_seconds,
+                    job_type=job_type,
+                )
+                if job is not None:
+                    break
             if job is None:
                 return False
 
+            job_type = JobType(job.job_type)
+            handler = self.handlers[job_type]
             try:
-                job_type = JobType(job.job_type)
-                handler = self.handlers.get(job_type)
-                if handler is None:
-                    raise RuntimeError(f"No worker handler registered for job type {job.job_type}")
-
                 def report_progress(progress: int) -> None:
                     if not service.set_progress(job.id, self.worker_id, progress):
                         raise RuntimeError("Worker lost ownership of the job")
@@ -78,7 +86,6 @@ class JobWorker:
             session.close()
 
     def run_forever(self, poll_seconds: float = 1.0) -> None:
-        """Continuously poll for jobs until the process is interrupted."""
         logger.info("Worker %s started", self.worker_id)
         try:
             while True:
