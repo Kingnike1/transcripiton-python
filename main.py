@@ -11,6 +11,7 @@ from app.api.meetings import router as meetings_router
 from app.config import settings
 from app.core.handlers import register_exception_handlers
 from app.core.logging import logger
+from app.core.request_context import register_request_id_middleware
 from app.database.session import init_db
 
 app = FastAPI(
@@ -20,6 +21,7 @@ app = FastAPI(
 )
 
 init_db()
+register_request_id_middleware(app)
 register_exception_handlers(app)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
