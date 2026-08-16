@@ -1,14 +1,11 @@
-"""
-Meeting service module.
-Contains business logic and transaction boundaries for meeting operations.
-"""
+"""Business logic and transaction boundaries for meeting operations."""
 
-from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.core.enums import ProcessingStatus
+from app.core.time import utc_now
 from app.database.unit_of_work import SqlAlchemyUnitOfWork
 from app.models.meeting import Meeting
 from app.schemas.meeting import MeetingCreate, MeetingUpdate
@@ -17,10 +14,9 @@ from app.schemas.meeting import MeetingCreate, MeetingUpdate
 class MeetingService:
     """Manage meetings and own transaction boundaries for write use cases."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session) -> None:
         """Initialize the service with one request-scoped database session."""
         self.uow = SqlAlchemyUnitOfWork(db)
-        # Kept as a compatibility alias for existing callers and tests.
         self.repository = self.uow.meetings
 
     def create(self, meeting: MeetingCreate) -> Meeting:
@@ -28,12 +24,13 @@ class MeetingService:
         if not meeting.title or len(meeting.title.strip()) < 3:
             raise ValueError("Meeting title must be at least 3 characters")
 
+        now = utc_now()
         db_meeting = Meeting(
             title=meeting.title.strip(),
             description=meeting.description,
             status=ProcessingStatus.CREATED.value,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=now,
+            updated_at=now,
         )
 
         with self.uow.transaction():
@@ -60,7 +57,7 @@ class MeetingService:
             for key, value in update_data.items():
                 setattr(db_meeting, key, value)
 
-            db_meeting.updated_at = datetime.now(timezone.utc)
+            db_meeting.updated_at = utc_now()
             self.repository.update(db_meeting)
 
         return self.uow.refresh(db_meeting)
@@ -83,7 +80,9 @@ class MeetingService:
         return self.repository.count_search(query)
 
     def transition_status(
-        self, meeting_id: int, new_status: ProcessingStatus
+        self,
+        meeting_id: int,
+        new_status: ProcessingStatus,
     ) -> bool:
         """Validate, persist, and commit a meeting status transition."""
         with self.uow.transaction():
