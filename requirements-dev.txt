@@ -2,7 +2,7 @@
 pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
-httpx==0.26.0
+httpx2==2.9.0
 
 # Quality and security tooling used by CI/development
 ruff==0.16.0
