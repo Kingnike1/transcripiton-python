@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 from typing import BinaryIO, Optional
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -29,6 +30,8 @@ from app.services.storage_service import StorageService
 
 class AudioService:
     """Coordinate staged upload, validation, storage, and persistence."""
+
+    ACTIVE_AUDIO_CONSTRAINT = "uq_audios_active_meeting"
 
     def __init__(
         self,
@@ -139,13 +142,20 @@ class AudioService:
                 updated_at=now,
             )
 
-            with self.uow.transaction():
-                self.audios.add(audio)
-                if not meeting.transition_status(ProcessingStatus.AUDIO_UPLOADED):
-                    raise AudioUploadError(
-                        f"Audio cannot be uploaded while meeting is in status {meeting.status}"
-                    )
-                self.meetings.update(meeting)
+            try:
+                with self.uow.transaction():
+                    self.audios.add(audio)
+                    if not meeting.transition_status(ProcessingStatus.AUDIO_UPLOADED):
+                        raise AudioUploadError(
+                            f"Audio cannot be uploaded while meeting is in status {meeting.status}"
+                        )
+                    self.meetings.update(meeting)
+            except IntegrityError as exc:
+                if self._is_active_audio_conflict(exc):
+                    raise AudioAlreadyExistsError(
+                        "This meeting already has an uploaded audio file"
+                    ) from exc
+                raise
 
             database_committed = True
             return self.uow.refresh(audio)
@@ -155,6 +165,21 @@ class AudioService:
             if stored_path and not database_committed:
                 self.storage.delete_file(stored_path)
             raise
+
+    @classmethod
+    def _is_active_audio_conflict(cls, exc: IntegrityError) -> bool:
+        """Recognize the active-audio unique rule across SQLite/PostgreSQL errors."""
+        original = getattr(exc, "orig", None)
+        diagnostic = getattr(original, "diag", None)
+        constraint_name = getattr(diagnostic, "constraint_name", None)
+        if constraint_name == cls.ACTIVE_AUDIO_CONSTRAINT:
+            return True
+
+        message = str(original or exc)
+        return (
+            cls.ACTIVE_AUDIO_CONSTRAINT in message
+            or "UNIQUE constraint failed: audios.meeting_id" in message
+        )
 
     def get_for_meeting(self, meeting_id: int) -> Optional[Audio]:
         """Return audio metadata for an existing meeting."""

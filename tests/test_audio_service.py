@@ -1,8 +1,10 @@
 """Tests for secure audio upload use cases."""
 
 from io import BytesIO
+import sqlite3
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.core.enums import ProcessingStatus
 from app.exceptions.audio import AudioAlreadyExistsError, AudioFormatError, AudioUploadError
@@ -104,6 +106,46 @@ def test_duplicate_upload_is_rejected(db_session, tmp_path):
 
     with pytest.raises(AudioAlreadyExistsError):
         service.upload(meeting.id, "second.wav", "audio/wav", wav_bytes())
+
+
+def test_concurrent_unique_conflict_is_translated_and_file_is_compensated(
+    db_session, tmp_path, monkeypatch
+):
+    """A database race must become the same domain conflict as the fast pre-check."""
+    meeting = create_meeting(db_session)
+    service = create_service(db_session, tmp_path)
+
+    def fail_with_unique_conflict() -> None:
+        original = sqlite3.IntegrityError("UNIQUE constraint failed: audios.meeting_id")
+        raise IntegrityError("INSERT INTO audios ...", {}, original)
+
+    monkeypatch.setattr(service.uow, "commit", fail_with_unique_conflict)
+
+    with pytest.raises(AudioAlreadyExistsError):
+        service.upload(meeting.id, "meeting.wav", "audio/wav", wav_bytes())
+
+    assert db_session.query(Audio).count() == 0
+    db_session.refresh(meeting)
+    assert meeting.status == ProcessingStatus.CREATED.value
+    assert list((tmp_path / "temp").glob("*")) == []
+    assert list((tmp_path / "audio" / str(meeting.id)).glob("*")) == []
+
+
+def test_unrelated_integrity_error_is_not_misclassified(db_session, tmp_path, monkeypatch):
+    """Only the active-audio constraint should map to AudioAlreadyExistsError."""
+    meeting = create_meeting(db_session)
+    service = create_service(db_session, tmp_path)
+
+    def fail_with_other_integrity_error() -> None:
+        original = sqlite3.IntegrityError("FOREIGN KEY constraint failed")
+        raise IntegrityError("INSERT INTO audios ...", {}, original)
+
+    monkeypatch.setattr(service.uow, "commit", fail_with_other_integrity_error)
+
+    with pytest.raises(IntegrityError):
+        service.upload(meeting.id, "meeting.wav", "audio/wav", wav_bytes())
+
+    assert list((tmp_path / "audio" / str(meeting.id)).glob("*")) == []
 
 
 def test_empty_file_is_rejected():
