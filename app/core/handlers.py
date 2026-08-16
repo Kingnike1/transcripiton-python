@@ -1,6 +1,7 @@
 """Global exception handlers with sanitized public responses."""
 
 import logging
+from typing import Optional
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -72,7 +73,13 @@ def _error_response(
 
 
 def _log_context(request: Request) -> dict[str, str]:
+    """Return correlation metadata for structured log records."""
     return {"request_id": get_request_id(request)}
+
+
+def _exc_info(exc: BaseException) -> tuple[type[BaseException], BaseException, Optional[object]]:
+    """Preserve the received exception traceback even outside an active except block."""
+    return (type(exc), exc, exc.__traceback__)
 
 
 async def request_validation_exception_handler(
@@ -130,7 +137,7 @@ async def database_exception_handler(
         exc.message,
         exc.details,
         extra=_log_context(request),
-        exc_info=True,
+        exc_info=_exc_info(exc),
     )
     return _error_response(
         request,
@@ -166,7 +173,7 @@ async def audio_exception_handler(
         exc.message,
         exc.details,
         extra=_log_context(request),
-        exc_info=True,
+        exc_info=_exc_info(exc),
     )
     return _error_response(
         request,
@@ -184,7 +191,7 @@ async def pipeline_exception_handler(
         exc.message,
         exc.details,
         extra=_log_context(request),
-        exc_info=True,
+        exc_info=_exc_info(exc),
     )
     return _error_response(
         request,
@@ -202,7 +209,7 @@ async def storage_exception_handler(
         exc.message,
         exc.details,
         extra=_log_context(request),
-        exc_info=True,
+        exc_info=_exc_info(exc),
     )
     return _error_response(
         request,
@@ -220,7 +227,7 @@ async def export_exception_handler(
         exc.message,
         exc.details,
         extra=_log_context(request),
-        exc_info=True,
+        exc_info=_exc_info(exc),
     )
     return _error_response(
         request,
@@ -238,7 +245,7 @@ async def amip_exception_handler(
         exc.message,
         exc.details,
         extra=_log_context(request),
-        exc_info=True,
+        exc_info=_exc_info(exc),
     )
     return _error_response(
         request,
@@ -252,9 +259,10 @@ async def generic_exception_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
     """Never expose exception strings, paths, SQL, credentials, or SDK details."""
-    logger.exception(
+    logger.error(
         "Unhandled exception",
         extra=_log_context(request),
+        exc_info=_exc_info(exc),
     )
     return _error_response(
         request,
