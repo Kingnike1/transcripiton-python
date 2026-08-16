@@ -1,121 +1,20 @@
 # API atual do AMIP
 
-Este documento descreve **somente endpoints implementados**. A especificação OpenAPI gerada pelo FastAPI é a referência executável do contrato.
+Este documento descreve **somente endpoints implementados**. A especificação OpenAPI do FastAPI é a referência executável.
 
-Base local padrão:
-
-```text
-http://localhost:8000
-```
+Base local padrão: `http://localhost:8000`.
 
 ## Erros públicos
 
-Erros normalizados usam:
-
-```json
-{
-  "status": "error",
-  "code": "NOT_FOUND",
-  "detail": "Meeting not found",
-  "request_id": "<uuid>"
-}
-```
-
-A resposta inclui o mesmo identificador em:
-
-```text
-X-Request-ID: <uuid>
-```
-
-Detalhes internos, SQL, secrets, paths e stack traces não fazem parte do contrato público.
-
-Códigos atuais incluem, conforme o caso:
-
-| HTTP | `code` típico |
-|---|---|
-| 400 | `BAD_REQUEST`, `AUDIO_UPLOAD_ERROR`, `VALIDATION_ERROR` |
-| 404 | `NOT_FOUND` |
-| 409 | `CONFLICT` |
-| 413 | `PAYLOAD_TOO_LARGE` |
-| 415 | `UNSUPPORTED_MEDIA_TYPE` |
-| 422 | `REQUEST_VALIDATION_ERROR` |
-| 500 | `INTERNAL_ERROR`, `DATABASE_ERROR`, `AUDIO_ERROR` |
-| 503 | `SERVICE_UNAVAILABLE` |
-
----
+Erros normalizados incluem `status`, `code`, `detail` e `request_id`, além do header `X-Request-ID`. SQL, secrets, paths e stack traces permanecem internos.
 
 ## Reuniões
 
-### Listar
-
-```http
-GET /api/meetings?skip=0&limit=10&search=termo
-```
-
-- `skip`: >= 0, padrão 0;
-- `limit`: 1–100, padrão 10;
-- `search`: título/descrição opcional.
-
-Resposta:
-
-```json
-{
-  "status": "success",
-  "data": [
-    {
-      "id": 1,
-      "title": "Reunião semanal",
-      "description": "Acompanhamento",
-      "status": "CREATED",
-      "created_at": "2026-08-16T10:00:00Z",
-      "updated_at": "2026-08-16T10:00:00Z"
-    }
-  ],
-  "total": 1,
-  "skip": 0,
-  "limit": 10
-}
-```
-
-### Consultar
-
-```http
-GET /api/meetings/{meeting_id}
-```
-
-### Criar
-
-```http
-POST /api/meetings
-Content-Type: application/json
-```
-
-```json
-{
-  "title": "Reunião semanal",
-  "description": "Acompanhamento"
-}
-```
-
-Sucesso: HTTP 201.
-
-### Atualizar
-
-```http
-PUT /api/meetings/{meeting_id}
-```
-
-Campos de título/descrição são opcionais no payload de atualização.
-
-### Remover
-
-```http
-DELETE /api/meetings/{meeting_id}
-```
-
-Soft delete. Sucesso: HTTP 204.
-
----
+- `GET /api/meetings`
+- `GET /api/meetings/{meeting_id}`
+- `POST /api/meetings`
+- `PUT /api/meetings/{meeting_id}`
+- `DELETE /api/meetings/{meeting_id}`
 
 ## Áudio
 
@@ -126,60 +25,7 @@ POST /api/meetings/{meeting_id}/audio
 Content-Type: multipart/form-data
 ```
 
-Campo:
-
-```text
-file=<arquivo>
-```
-
-Extensões aceitas atualmente:
-
-- `.mp3`;
-- `.wav`;
-- `.m4a`;
-- `.ogg`;
-- `.webm`.
-
-O backend:
-
-- processa o stream em chunks em vez de `await file.read()` integral;
-- aplica limite durante a escrita;
-- faz staging temporário;
-- valida nome/path, extensão, MIME e assinatura;
-- usa `ffprobe` para confirmar stream de áudio e extrair metadados;
-- promove o arquivo atomicamente;
-- mantém no máximo um áudio ativo por reunião;
-- compensa storage se a transação falhar antes do commit confirmado.
-
-Exemplo de sucesso HTTP 201:
-
-```json
-{
-  "meeting_id": 1,
-  "audio": {
-    "id": 5,
-    "meeting_id": 1,
-    "filename": "meeting.wav",
-    "file_size": 123456,
-    "mime_type": "audio/wav",
-    "duration": 125,
-    "codec_name": "pcm_s16le",
-    "channels": 1,
-    "sample_rate": 16000,
-    "created_at": "2026-08-16T10:10:00Z"
-  },
-  "status": "AUDIO_UPLOADED"
-}
-```
-
-`file_path` é detalhe interno e não faz parte de `AudioResponse`.
-
-Respostas relevantes:
-
-- 400 — upload/formato inválido;
-- 404 — reunião inexistente;
-- 409 — áudio ativo já existe;
-- 503 — `ffprobe` indisponível.
+O backend processa em chunks/staging, aplica limite durante escrita, valida arquivo, usa `ffprobe`, promove atomicamente e garante no máximo um áudio ativo.
 
 ### Metadados
 
@@ -187,9 +33,75 @@ Respostas relevantes:
 GET /api/meetings/{meeting_id}/audio
 ```
 
-Retorna `AudioResponse` sem caminho de storage.
+`file_path` não faz parte do contrato público.
 
----
+## Jobs persistentes — Sprint 6B
+
+### Criar/obter job ativo de transcrição
+
+```http
+POST /api/meetings/{meeting_id}/jobs/transcription
+```
+
+Pré-condições:
+
+- reunião existe;
+- reunião possui áudio ativo.
+
+A criação é idempotente enquanto houver um job `PENDING`, `RUNNING` ou `RETRYING` do tipo `TRANSCRIBE` para a reunião. Chamadas repetidas retornam o mesmo job ativo.
+
+Exemplo:
+
+```json
+{
+  "id": "<uuid>",
+  "meeting_id": 1,
+  "job_type": "TRANSCRIBE",
+  "status": "PENDING",
+  "progress": 0,
+  "attempt": 0,
+  "max_attempts": 3,
+  "error_message": null,
+  "result": null,
+  "available_at": "2026-08-16T22:00:00",
+  "created_at": "2026-08-16T22:00:00",
+  "started_at": null,
+  "completed_at": null
+}
+```
+
+### Consultar job
+
+```http
+GET /api/jobs/{job_id}
+```
+
+### Listar jobs da reunião
+
+```http
+GET /api/meetings/{meeting_id}/jobs
+```
+
+### Cancelar
+
+```http
+DELETE /api/jobs/{job_id}
+```
+
+Sucesso: HTTP 204. Somente `PENDING` ou `RETRYING` são canceláveis nesta versão. Cancelamento preemptivo de job já em execução não está implementado.
+
+### Estados
+
+```text
+PENDING
+RUNNING
+RETRYING
+COMPLETED
+FAILED
+CANCELLED
+```
+
+O worker usa lease/heartbeat. Jobs `RUNNING` cujo heartbeat expirou podem ser recuperados por outro worker.
 
 ## Health
 
@@ -197,30 +109,15 @@ Retorna `AudioResponse` sem caminho de storage.
 GET /health
 ```
 
-```json
-{
-  "status": "healthy",
-  "version": "0.2.0"
-}
-```
+A versão da aplicação após a Sprint 6B é `0.3.0`. O endpoint continua sendo liveness simples.
 
-É um **liveness check** simples. Readiness de banco/storage ainda não foi implementado.
+## Ainda não implementado
 
----
-
-## Não implementado
-
-Não existem ainda endpoints operacionais de:
-
-- jobs persistentes/retry/cancelamento;
-- transcrição;
+- transcrição real e consulta de transcript;
 - diarização;
-- análise por LLM;
-- busca avançada;
-- exportação;
+- LLM;
+- busca/exportação;
 - autenticação/autorização.
-
-Esses contratos só serão adicionados aqui depois da implementação correspondente.
 
 ---
 

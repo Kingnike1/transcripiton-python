@@ -2,12 +2,12 @@
 
 ## Estratégia
 
-- SQLAlchemy 2.x como ORM;
-- SQLite em desenvolvimento/testes;
-- PostgreSQL planejado para staging/produção multiusuário;
-- Alembic como única fonte oficial de evolução do schema;
-- Service Layer como proprietária das transações;
-- semântica temporal em UTC.
+- SQLAlchemy 2.x;
+- SQLite para uso local/testes;
+- PostgreSQL planejado quando houver uso multiusuário relevante;
+- Alembic como fonte oficial do schema;
+- Service Layer dona das transações;
+- UTC como semântica temporal.
 
 ## Schema atual
 
@@ -16,42 +16,45 @@ meetings
   ├── audios
   │     └── transcriptions
   │            └── speaker_segments
-  └── meeting_analysis (1:1)
+  ├── meeting_analysis (1:1)
+  └── processing_jobs
 ```
 
-O fato de modelos de transcrição/diarização/análise existirem não significa que os providers correspondentes estejam implementados.
+Modelos de transcrição/diarização/análise ainda não representam providers operacionais.
 
 ## Áudio
 
-A migration `0002_audio_media_metadata` adicionou:
+`0002_audio_media_metadata` adicionou codec/canais/sample rate. `0003_one_active_audio_per_meeting` garante no máximo um áudio com `deleted_at IS NULL` por reunião.
 
-- `codec_name`;
-- `channels`;
-- `sample_rate`.
+## ProcessingJob — Sprint 6B
 
-A migration `0003_one_active_audio_per_meeting` garante:
+A migration `0004_processing_jobs` adiciona trabalho assíncrono durável.
+
+Campos operacionais principais:
+
+- `id`, `meeting_id`, `job_type`, `status`;
+- `progress`, `attempt`, `max_attempts`;
+- `payload`, `result`, `error_message`;
+- `available_at`;
+- `locked_by`, `locked_at`, `heartbeat_at`;
+- `created_at`, `updated_at`, `started_at`, `completed_at`.
+
+Índices:
 
 ```text
-UNIQUE meeting_id
-WHERE deleted_at IS NULL
+ix_processing_jobs_status_available
+(status, available_at, created_at)
+
+uq_processing_jobs_active_meeting_type
+UNIQUE (meeting_id, job_type)
+WHERE status IN ('PENDING', 'RUNNING', 'RETRYING')
 ```
 
-Assim, uma reunião possui no máximo um áudio ativo, mas pode manter registros soft-deletados como histórico.
+A constraint é a última defesa contra duas criações concorrentes do mesmo job ativo.
 
-## Unit of Work
+## Claim/lease
 
-```text
-Application Service
-  ↓
-SqlAlchemyUnitOfWork
-  ├── commit no sucesso
-  └── rollback na exceção
-  ↓
-Repositories
-  └── query / add / update / flush
-```
-
-Repositories não executam `commit()` ou `rollback()`.
+O worker procura job disponível e tenta um update condicionado ao estado observado. `RUNNING` só pode ser recuperado quando o heartbeat do lease está stale. Isso evita depender de locks em memória e permite recuperação depois de restart/crash.
 
 ## Cadeia de migrations
 
@@ -61,73 +64,36 @@ Repositories não executam `commit()` ou `rollback()`.
 0002_audio_media_metadata
   ↓
 0003_one_active_audio_per_meeting
+  ↓
+0004_processing_jobs
 ```
 
-### Banco novo
+Banco novo:
 
 ```bash
 alembic upgrade head
 ```
 
-### Banco legado equivalente à baseline `0001`
-
-Depois de backup e verificação do schema:
+Banco legado na baseline:
 
 ```bash
 alembic stamp 0001_initial_schema
 alembic upgrade head
 ```
 
-`stamp head` só deve ser usado quando o schema já corresponder exatamente ao head atual. `stamp` não corrige drift.
-
-### Nova alteração de schema
-
-```bash
-alembic revision --autogenerate -m "descricao"
-```
-
-A revision deve ser revisada manualmente e validada antes de:
-
-```bash
-alembic upgrade head
-```
+`stamp` somente registra schema comprovadamente equivalente; não corrige drift.
 
 ## Lifecycle
 
-O processo web não cria nem migra tabelas automaticamente.
-
-```text
-Deployment
-  ↓
-alembic upgrade head
-  ↓
-Start FastAPI
-```
-
-`reset_db()` é ferramenta explícita apenas para `development`/`test`.
-
-## Tempo
-
-`app.core.time.utc_now()` é o relógio comum. SQLite pode remover `tzinfo` no round-trip com as colunas `DateTime` atuais; uma eventual persistência timezone-aware mais estrita será revisitada junto da adoção do PostgreSQL.
-
-`MeetingRepository.get_stale_processing(minutes)` usa o limiar solicitado e os estados de `ProcessingStatus`.
+Web e worker não criam/migram schema automaticamente. Deployment executa migrations explicitamente antes dos processos.
 
 ## Gates
 
-`tests/test_migrations.py` valida explicitamente:
+`tests/test_migrations.py` valida banco vazio, drift, baseline legada, downgrade, integridade do áudio e a constraint de job ativo. O workflow Quality executa migration integrity como gate bloqueante.
 
-- `upgrade head` em banco vazio;
-- ausência de drift contra `Base.metadata`;
-- adoção de baseline legada;
-- `stamp head` quando o schema já é atual;
-- downgrade completo em banco descartável;
-- regra de um áudio ativo.
+## Evolução seguinte
 
-O workflow `Quality` executa esses testes como gate próprio.
-
-## Próxima alteração prevista
-
-A Sprint 6B deverá adicionar o modelo/tabela de jobs persistentes por migration Alembic. PostgreSQL não será introduzido apenas por antecipação; a migração ocorrerá quando staging/produção multiusuário justificar.
+Sprint 7 adicionará persistência de segmentos de transcrição. PostgreSQL permanece adiado enquanto o uso for pessoal/local e a concorrência baixa.
 
 ---
 

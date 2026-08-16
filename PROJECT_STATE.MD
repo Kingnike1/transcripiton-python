@@ -4,122 +4,77 @@
 
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-16  
-**Sprint atual:** Sprint 6A — Estabilização do Núcleo  
-**Stack atual:** P0.8 — Organização documental  
-**Branch:** `agent/stack-p0-8-documentation`  
+**Sprint atual:** Sprint 6B — Jobs persistentes  
+**Branch:** `agent/sprint-6b-persistent-jobs`  
 **Branch base / integração:** `develop`  
-**Head base verde:** `af4b4a5946f0633e733dcc0a4072629ee5c77031`  
-**PR:** #9  
-**Status:** P0.8 implementada e validada na branch; aguardando gates do head final, merge em `develop` e pós-merge
+**Status:** implementação da 6B concluída na branch; documentação/PR e gates finais em fechamento
 
 ## Baseline
 
-P0.1–P0.7 estão integradas em `develop` pelos PRs #2–#8.
+P0.1–P0.8 estão integradas em `develop` pelos PRs #2–#9. O merge da P0.8 é `2e3e0ca32ae20fd8ee70f6e2e5c97ea328b82360`, com CI e Quality pós-merge verdes.
 
-A P0.7 passou em CI e Quality no PR e novamente após merge em `develop`:
+`main` continua como release estável anterior à Sprint 6A; branch protection administrativa permanece pendente por falta de permissão da integração.
 
-- Python 3.11: suíte completa + cobertura >=80%;
-- Python 3.12: suíte completa;
+## Sprint 6B — entregue na branch
+
+- [x] `ProcessingJob` persistente.
+- [x] migration `0004_processing_jobs`.
+- [x] estados `PENDING/RUNNING/RETRYING/COMPLETED/FAILED/CANCELLED`.
+- [x] progresso, tentativas, payload, resultado e erro persistidos.
+- [x] `available_at`, lease, lock e heartbeat.
+- [x] índice único parcial: no máximo um job ativo por reunião/tipo.
+- [x] criação idempotente com defesa no banco.
+- [x] claim otimista e recuperação de lease stale.
+- [x] retry até `max_attempts`.
+- [x] worker separado do FastAPI.
+- [x] worker só reclama tipos com handler registrado.
+- [x] API para criar job de transcrição, consultar, listar por reunião e cancelar pendentes.
+- [x] fila/singleton em memória removidos.
+- [x] `ProcessingService` migrado para jobs persistentes.
+- [x] testes de persistência em nova sessão, ownership, stale recovery, retry e worker.
+- [x] migration integrity atualizada para `processing_jobs`.
+- [x] ADR-025.
+
+## Validação já obtida
+
+Head funcional antes do fechamento documental:
+
+- Python 3.11: **117 testes aprovados**;
+- cobertura: **86,95%**;
+- Python 3.12: verde;
 - Ruff: verde;
 - mypy: verde;
 - migrations: verdes;
 - Bandit: verde;
-- `pip-audit`: sem vulnerabilidades conhecidas no runtime.
+- `pip-audit`: verde.
 
-`main` permanece como release estável anterior à Sprint 6A. A proteção administrativa da `main` continua recomendada, mas não pôde ser configurada pela integração atual (403).
+## Próximo gate
 
-## Estado das stacks P0
+Após sincronizar arquitetura/API/banco/backlog/decisões:
 
-| Stack | Estado |
-|---|---|
-| P0.1 — Unit of Work | Integrada em `develop` |
-| P0.2 — Alembic | Integrada em `develop` |
-| P0.3 — Upload streaming | Integrada em `develop` |
-| P0.4 — Concorrência de áudio | Integrada em `develop` |
-| P0.5 — Erros seguros/request ID | Integrada em `develop` |
-| P0.6 — Lifecycle/configuração | Integrada em `develop` |
-| P0.7 — Qualidade/governança | Integrada em `develop` |
-| P0.8 — Organização documental | Implementada; PR #9 aberto |
+1. CI + Quality no head documental final;
+2. PR da Sprint 6B para `develop`;
+3. merge somente com gates verdes;
+4. CI + Quality pós-merge;
+5. iniciar Sprint 7 — primeira transcrição real com um único provider.
 
----
-
-## P0.8 — Organização documental
-
-### Objetivo
-
-Eliminar documentação contraditória antes da Sprint 6B e separar claramente:
-
-```text
-docs/current/  → implementação real
-docs/roadmap/  → futuro planejado
-docs/archive/  → histórico/superseded
-docs/adr/      → decisões arquiteturais
-```
-
-### Implementado
-
-- [x] `docs/README.md` com mapa e regra de fonte da verdade.
-- [x] `docs/current/ARCHITECTURE.md`.
-- [x] `docs/current/DATABASE.md`.
-- [x] `docs/current/API.md`.
-- [x] `docs/current/DEPLOYMENT.md` reescrito sem infraestrutura fictícia.
-- [x] `docs/current/CONTRIBUTING.md` alinhado ao GitFlow/Quality atual.
-- [x] `docs/roadmap/FRONTEND.md` explicitamente planejado.
-- [x] `docs/roadmap/AI_PIPELINE.md` explicitamente planejado e dependente de jobs persistentes.
-- [x] `docs/archive/` com catálogo de prompts/Sprints superseded e baseline Git preservada.
-- [x] `PROJECT_CONTEXT.md` reescrito com matriz de capacidade real.
-- [x] `README.md` reescrito para não anunciar transcrição/LLM/export como funcionalidades entregues.
-- [x] `docs/00_PROJECT_OVERVIEW.md` reescrito.
-- [x] `PROJECT_GOVERNANCE.md` atualizado para a nova taxonomia.
-- [x] `docs/06_BACKLOG.md` sincronizado após P0.7.
-- [x] ADR-024 e TD-023 registram a taxonomia e a ordem de autoridade.
-- [x] caminhos antigos `docs/01..05`, `07..09` removidos depois de substituição.
-- [x] registros antigos de Sprint removidos da árvore ativa e catalogados em `archive/`.
-- [x] teste de regressão garante paths canônicos e impede retorno dos paths superseded.
-- [x] teste de links Markdown locais garante alvos existentes.
-- [x] CI + Quality da branch passaram antes da abertura do PR #9.
-- [x] PR #9 criado para `develop`.
-
-### Pendente para fechamento
-
-- [ ] CI + Quality do head final do PR #9.
-- [ ] marcar PR #9 pronto para review.
-- [ ] merge em `develop`.
-- [ ] CI + Quality pós-merge em `develop`.
-
----
-
-## Capacidade atual do produto
+## Capacidade após a 6B
 
 ### Funcional
 
-- API CRUD de reuniões;
+- CRUD de reuniões;
 - upload/armazenamento de áudio;
-- streaming/staging + limite;
-- `ffprobe` e metadados;
-- Unit of Work;
-- Alembic;
-- integridade de áudio concorrente;
-- erros sanitizados/request ID;
-- lifecycle/configuração segura;
-- CI/Quality completo.
+- jobs duráveis e worker separado;
+- API de acompanhamento de processamento;
+- base pronta para transcrição real.
 
 ### Ainda não funcional
 
-- jobs persistentes/worker;
-- transcrição real;
-- diarização;
-- análise por LLM;
-- UI completa;
-- autenticação/autorização;
-- busca/exportação;
-- produção pública multiusuário.
+- provider real de transcrição;
+- transcrição persistida/segmentos;
+- interface de uso ponta a ponta;
+- deploy local simplificado para usuário final;
+- diarização/LLM e recursos posteriores.
 
-## Próxima etapa após P0.8
-
-**Sprint 6B — Jobs persistentes**.
-
-Essa Sprint é o último grande pré-requisito estrutural antes da primeira transcrição real.
-
-**Document Version:** 2.6  
+**Document Version:** 3.0  
 **Status:** Active
