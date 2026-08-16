@@ -72,7 +72,7 @@ pyannote.audio continua sendo a referência planejada para diarização, atrás 
 **Status:** Accepted  
 **Data:** 2026-08-03
 
-Queries e operações de persistência ficam encapsuladas em repositories. A partir da TD-016, repositories são explicitamente **transaction-neutral** e não podem executar `commit()` ou `rollback()`.
+Queries e operações de persistência ficam encapsuladas em repositories. A partir da TD-016, repositories são explicitamente transaction-neutral e não podem executar `commit()` ou `rollback()`.
 
 ---
 
@@ -146,49 +146,39 @@ O projeto evolui por stacks e Sprints pequenas, com testes, documentação e qua
 **Data:** 2026-08-06  
 **ADR:** `docs/adr/ADR-017-service-layer-transaction-ownership.md`
 
-### Contexto
-
-O projeto possuía ownership transacional inconsistente: `MeetingRepository` fazia commits internos, `AudioService` controlava sua própria transação e `MeetingService.transition_status()` alterava o estado sem garantir persistência.
-
-Isso inviabilizaria casos de uso atômicos com múltiplos repositories, especialmente jobs persistentes e processamento de áudio.
-
-### Decisão
-
-A camada de serviço passa a possuir todas as fronteiras transacionais.
-
-```text
-Application Service
-  ↓
-SqlAlchemyUnitOfWork
-  ├── commit no sucesso
-  └── rollback na exceção
-  ↓
-Repositories
-  └── query / add / flush
-```
-
-Repositories não executam `commit()` ou `rollback()`.
-
-`SqlAlchemyUnitOfWork` compartilha a `Session` request-scoped já existente e agrupa repositories participantes do mesmo caso de uso.
-
-### Consequências positivas
-
-- transições de status passam a ser duráveis;
-- CRUD e upload seguem a mesma política;
-- múltiplos repositories podem participar de um único commit;
-- rollback possui responsabilidade clara;
-- a Sprint 6B pode implementar jobs persistentes sobre uma base previsível.
-
-### Limitações
-
-Filesystem e APIs externas continuam fora da transação ACID do banco e exigem compensação explícita quando necessário.
-
-### Regra de revisão
-
-Esta decisão deve ser revista apenas se a aplicação adotar outra estratégia de persistência ou transações distribuídas. Até lá, novos repositories devem permanecer transaction-neutral.
+A camada de serviço possui as fronteiras transacionais. Repositories usam query/add/flush e não executam commit ou rollback. `SqlAlchemyUnitOfWork` coordena a Session compartilhada pelo caso de uso.
 
 ---
 
-**Document Version:** 1.1  
-**Last Updated:** 2026-08-06  
+## TD-017 — Alembic é a fonte oficial de evolução do schema
+
+**Status:** Accepted  
+**Data:** 2026-08-16  
+**ADR:** `docs/adr/ADR-018-alembic-schema-baseline.md`
+
+### Contexto
+
+Alembic já era exigido pela governança e estava instalado, mas o projeto não possuía revisions. O schema era materializado apenas por `Base.metadata.create_all()`, sem histórico de evolução ou downgrade.
+
+### Decisão
+
+- `0001_initial_schema` é a baseline do schema existente.
+- bancos novos usam `alembic upgrade head`;
+- bancos preexistentes compatíveis usam `alembic stamp head` depois de backup e verificação de schema;
+- SQLite usa batch migrations;
+- revisions autogeradas devem ser revisadas manualmente;
+- migrations futuras são obrigatórias para alterações de schema.
+
+### Validação
+
+O schema gerado por `upgrade head` foi comparado com `Base.metadata` e apresentou zero diferenças na validação independente. Também foram validados downgrade e adoção por stamp.
+
+### Consequências
+
+P0.4 poderá adicionar constraints e Sprint 6B poderá criar `processing_jobs` sem alterações ad hoc no banco. `create_all()` será retirado do startup normal na P0.6.
+
+---
+
+**Document Version:** 1.2  
+**Last Updated:** 2026-08-16  
 **Status:** Active
