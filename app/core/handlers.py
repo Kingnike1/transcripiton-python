@@ -1,7 +1,6 @@
 """Global exception handlers with sanitized public responses."""
 
 import logging
-from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
