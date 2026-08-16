@@ -1,7 +1,6 @@
 """Tests for the first real transcription vertical slice."""
 
 from dataclasses import dataclass
-from pathlib import Path
 from types import SimpleNamespace
 
 from sqlalchemy.orm import sessionmaker
@@ -87,14 +86,15 @@ def test_faster_whisper_adapter_consumes_generator_and_maps_segments() -> None:
         model_factory=factory,
     )
     result = provider.transcribe("meeting.wav", "auto")
+    segments = result.segments or []
 
     assert captured["model_name"] == "base"
     assert captured["model_kwargs"] == {"device": "cpu", "compute_type": "int8"}
     assert captured["kwargs"]["language"] is None
     assert result.text == "Olá mundo"
     assert result.language == "pt"
-    assert len(result.segments or []) == 2
-    assert result.segments[0].confidence is not None
+    assert len(segments) == 2
+    assert segments[0].confidence is not None
 
 
 def test_persist_result_saves_ordered_segments_and_transcribed_status(db_session) -> None:
@@ -180,8 +180,12 @@ def test_transcription_handler_rejects_storage_escape(db_session, tmp_path) -> N
 
     assert worker.run_once() is True
     db_session.expire_all()
-    assert PersistentJobService(db_session).get_job(job.id).status == JobStatus.FAILED.value
-    assert db_session.get(Meeting, meeting.id).status == ProcessingStatus.FAILED.value
+    failed_job = PersistentJobService(db_session).get_job(job.id)
+    assert failed_job is not None
+    assert failed_job.status == JobStatus.FAILED.value
+    failed_meeting = db_session.get(Meeting, meeting.id)
+    assert failed_meeting is not None
+    assert failed_meeting.status == ProcessingStatus.FAILED.value
     assert provider.calls == 0
 
 
