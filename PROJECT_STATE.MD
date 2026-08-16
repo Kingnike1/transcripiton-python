@@ -5,27 +5,21 @@
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-16  
 **Sprint atual:** Sprint 6A — Estabilização do Núcleo  
-**Stack atual:** P0.6 — Lifecycle e configuração  
-**Branch:** `agent/stack-p0-6-lifecycle-config`  
+**Stack atual:** P0.7 — Qualidade e governança  
+**Branch:** `agent/stack-p0-7-quality-governance`  
 **Branch base / integração:** `develop`  
-**PR:** #7  
-**Status:** P0.6 implementada e validada; aguardando quality gate do head documental final antes do merge em `develop`
+**Head base:** `d2966cbc02125876df86f6cc358c6fe55fc48bff`  
+**Status:** P0.1–P0.6 integradas em `develop`; P0.7 em execução
 
-## Baseline integrada
+## Baseline validada
 
-P0.1–P0.5 estão integradas em `develop` pelos PRs #2–#6.
+P0.1–P0.6 estão integradas em `develop` pelos PRs #2–#7.
 
-O head `5eb893c4014d089902eb507c3055253c65cc4e65` de `develop` passou no GitHub Actions com:
+A P0.6 passou no quality gate do PR com 122 testes, 87,29% de cobertura e zero warnings do pytest. O CI pós-merge em `develop` também concluiu com sucesso.
 
-- 114 testes aprovados;
-- cobertura total de 87,04%;
-- gate mínimo de 80% aprovado.
+`main` permanece sem receber a Sprint 6A; a promoção para `main` será tratada como release controlada após o fechamento da estabilização.
 
-`main` permanece fora da integração até uma etapa futura de release.
-
----
-
-## P0.1–P0.5
+## Estado das stacks P0
 
 | Stack | Estado |
 |---|---|
@@ -34,82 +28,56 @@ O head `5eb893c4014d089902eb507c3055253c65cc4e65` de `develop` passou no GitHub 
 | P0.3 — Upload streaming | Integrada em `develop` |
 | P0.4 — Concorrência de áudio | Integrada em `develop` |
 | P0.5 — Erros seguros/request ID | Integrada em `develop` |
+| P0.6 — Lifecycle/configuração | Integrada em `develop` |
+| P0.7 — Qualidade/governança | Em execução |
+| P0.8 — Organização documental | Planejada |
 
 ---
 
-## P0.6 — Lifecycle e configuração
+## P0.7 — Qualidade e governança
 
-### Implementado
+### Objetivo
 
-- [x] `init_db()` removido do startup/import normal.
-- [x] `Base.metadata.create_all()` removido do fluxo normal da aplicação.
-- [x] Alembic mantido como fonte oficial de schema; deployment usa `alembic upgrade head` explicitamente.
-- [x] FastAPI lifespan criado para lifecycle de recursos.
-- [x] `engine.dispose()` executado no shutdown.
-- [x] `reset_db()` restrito a `development/test`.
-- [x] assinatura moderna de `TemplateResponse`.
-- [x] `AMIPBaseSettings` com `SettingsConfigDict`.
-- [x] settings modulares migrados para Pydantic V2.
-- [x] `MeetingResponse` migrado para `ConfigDict`.
-- [x] `ENVIRONMENT` adicionado (`development/test/staging/production`).
-- [x] staging/produção rejeitam `DEBUG=true`.
-- [x] staging/produção rejeitam `SECRET_KEY` curta/placeholder.
-- [x] `.env.example` atualizado.
-- [x] `utc_now()` criado como relógio comum.
-- [x] usos conhecidos de `datetime.utcnow()` removidos dos models legados.
-- [x] `MeetingService`/`AudioService` alinhados ao relógio comum.
-- [x] `get_stale_processing(minutes)` corrigido para respeitar o limiar.
-- [x] stale query usa `ProcessingStatus` em vez de strings duplicadas.
-- [x] testes de import sem criação de banco.
-- [x] teste de descarte do engine no shutdown.
-- [x] teste de proteção de `reset_db()`.
-- [x] testes de configuração insegura/segura de produção.
-- [x] testes de stale threshold.
-- [x] ADR-022.
-- [x] arquitetura, banco, decisões técnicas e backlog atualizados.
-- [x] PR #7 criado para `develop`.
+Transformar o CI em um quality gate reproduzível para código, tipos, migrations e segurança antes da Sprint 6B, e formalizar o fluxo Git já adotado pelo projeto.
 
-### Quality gate
+### Decisões iniciais
 
-Run #113 no commit `993965c6fd5499560f4577f56b1c1524c5de776d`:
+- Python 3.11 continua como baseline mínima atualmente comprovada.
+- Python 3.12 será testado no CI antes de ser declarado oficialmente suportado.
+- `actions/checkout` e `actions/setup-python` serão atualizados para v6, que usam Node 24 e são compatíveis com o runner hospedado atual.
+- Ruff será o linter principal.
+- mypy será o type checker inicial por ser nativo do ecossistema Python e não exigir Node.
+- Bandit será gate bloqueante para achados de severidade média/alta.
+- `pip-audit` entrará inicialmente como auditoria visível; vulnerabilidades existentes em pins legados serão analisadas antes de qualquer upgrade amplo de framework.
+- migrations terão um gate explícito além da suíte geral.
 
-- **122 testes aprovados**;
-- **0 falhas**;
-- **87,29% de cobertura**;
-- gate >=80% aprovado;
-- **0 warnings do pytest**.
+### Em execução
 
-Os 9 warnings da baseline (Pydantic class-based Config + TemplateResponse legado) foram eliminados.
+- [ ] Criar configuração de Ruff e mypy.
+- [ ] Criar dependências de desenvolvimento reproduzíveis.
+- [ ] Atualizar Actions para runtime Node 24.
+- [ ] Testar Python 3.11 e 3.12.
+- [ ] Adicionar lint bloqueante.
+- [ ] Adicionar type checking bloqueante.
+- [ ] Adicionar migration check explícito.
+- [ ] Adicionar Bandit bloqueante para medium/high.
+- [ ] Executar `pip-audit` e classificar o passivo real de dependências.
+- [ ] Corrigir violações descobertas pelos novos gates.
+- [ ] Atualizar `PROJECT_GOVERNANCE.md` para GitFlow adaptado e Conventional Commits.
+- [ ] Alinhar a versão Python documentada à matriz realmente validada.
+- [ ] Verificar/proteger `main` se a API disponível permitir a alteração segura.
+- [ ] Registrar ADR/decisão técnica e atualizar backlog/arquitetura.
+- [ ] PR + CI verde + merge em `develop`.
 
-### Decisão temporal
+## Limites da P0.7
 
-A aplicação produz timestamps semanticamente em UTC por `utc_now()`. Não foi criada migration apenas para `DateTime(timezone=True)`, pois SQLite não preserva `tzinfo` de forma equivalente a PostgreSQL. Esse ponto será reavaliado junto da migração para PostgreSQL.
+Não serão feitos upgrades amplos de FastAPI/SQLAlchemy/Pydantic apenas para satisfazer scanner sem análise de compatibilidade. Vulnerabilidades reais serão classificadas e, quando exigirem upgrade estrutural, receberão plano explícito e testes próprios.
 
-### Pendente
+P0.8 continuará responsável por reorganizar documentos históricos e atualizar documentos de contexto ainda antigos.
 
-- [ ] CI do head final após esta sincronização documental.
-- [ ] marcar PR #7 pronto para review.
-- [ ] merge em `develop`.
-- [ ] CI pós-merge em `develop`.
+## Próxima etapa após P0.7
 
----
+**P0.8 — Organização documental**, seguida pela **Sprint 6B — Jobs persistentes**.
 
-## Próxima stack
-
-**P0.7 — Qualidade e governança**
-
-Prioridades:
-
-- migration check explícito no CI;
-- Ruff;
-- type checking;
-- auditoria de dependências/segurança;
-- proteção de `main`;
-- atualizar governança para GitFlow adaptado + Conventional Commits;
-- alinhar Python documentado com a versão realmente suportada/testada;
-- atualizar actions cujo runtime está em depreciação.
-
-Depois: P0.8 documental → Sprint 6B Jobs persistentes.
-
-**Document Version:** 2.2  
+**Document Version:** 2.3  
 **Status:** Active
