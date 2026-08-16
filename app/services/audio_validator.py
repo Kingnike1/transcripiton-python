@@ -21,15 +21,16 @@ class AudioValidator:
     def __init__(self, max_size: int = settings.MAX_UPLOAD_SIZE) -> None:
         self.max_size = max_size
 
-    def validate(self, filename: str, content_type: str, content: bytes) -> None:
-        if not filename or Path(filename).name != filename:
+    def validate_metadata(self, filename: str, content_type: str) -> str:
+        """Validate filename and declared MIME type before reading the upload."""
+        if (
+            not filename
+            or "\x00" in filename
+            or "/" in filename
+            or "\\" in filename
+            or Path(filename).name != filename
+        ):
             raise AudioUploadError("Invalid audio filename")
-        if not content:
-            raise AudioUploadError("Audio file cannot be empty")
-        if len(content) > self.max_size:
-            raise AudioUploadError(
-                f"Audio file exceeds the maximum size of {self.max_size} bytes"
-            )
 
         extension = Path(filename).suffix.lower()
         allowed_mime_types = self.ALLOWED_TYPES.get(extension)
@@ -39,8 +40,34 @@ class AudioValidator:
             raise AudioFormatError(
                 f"Content type {content_type} does not match extension {extension}"
             )
-        if not self._signature_matches(extension, content):
+        return extension
+
+    def validate_staged(
+        self,
+        filename: str,
+        content_type: str,
+        size_bytes: int,
+        header: bytes,
+    ) -> None:
+        """Validate size and signature after bounded staging to disk."""
+        extension = self.validate_metadata(filename, content_type)
+        if size_bytes <= 0:
+            raise AudioUploadError("Audio file cannot be empty")
+        if size_bytes > self.max_size:
+            raise AudioUploadError(
+                f"Audio file exceeds the maximum size of {self.max_size} bytes"
+            )
+        if not self._signature_matches(extension, header):
             raise AudioFormatError("File content does not match the declared audio format")
+
+    def validate(self, filename: str, content_type: str, content: bytes) -> None:
+        """Backward-compatible bytes validator used by unit tests and adapters."""
+        self.validate_staged(
+            filename=filename,
+            content_type=content_type,
+            size_bytes=len(content),
+            header=content[:64],
+        )
 
     @staticmethod
     def _signature_matches(extension: str, content: bytes) -> bool:
