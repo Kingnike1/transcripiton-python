@@ -99,16 +99,20 @@ class FFprobeAudioInspector:
     def _optional_float(value: object) -> Optional[float]:
         if value in (None, "", "N/A"):
             return None
+        if not isinstance(value, (str, int, float)):
+            return None
         try:
-            return float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
+            return float(value)
+        except ValueError:
             return None
 
     @staticmethod
     def _optional_int(value: object) -> Optional[int]:
         if value in (None, "", "N/A"):
             return None
+        if not isinstance(value, (str, int, float)):
+            return None
         try:
-            return int(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
+            return int(value)
+        except ValueError:
             return None
