@@ -40,7 +40,6 @@ jobs:
           bandit -q -r app -ll
           bandit -q main.py -ll
       - name: Dependency vulnerability audit
-        continue-on-error: true
         run: pip-audit -r requirements.txt
 
   python-312:
