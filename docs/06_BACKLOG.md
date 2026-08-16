@@ -72,47 +72,46 @@
 ### Sprint 6A — P0.6 Lifecycle e configuração
 
 - [x] Remover `init_db()`/`create_all()` do startup normal
-- [x] Implementar FastAPI lifespan de recursos
-- [x] Manter migrations externas via Alembic
-- [x] `engine.dispose()` no shutdown
-- [x] Restringir `reset_db()` a development/test
-- [x] Corrigir `TemplateResponse` depreciado
-- [x] Criar helper UTC e eliminar `datetime.utcnow()` conhecido
-- [x] Corrigir `get_stale_processing(minutes)`
-- [x] Usar `ProcessingStatus` no stale query
-- [x] Migrar settings para `SettingsConfigDict`
-- [x] Migrar schema restante para `ConfigDict`
-- [x] Validar `ENVIRONMENT`, `DEBUG` e `SECRET_KEY`
-- [x] Atualizar `.env.example`
-- [x] Testar import sem criação de schema, lifecycle, settings e stale threshold
-- [x] ADR-022 + arquitetura/banco/decisões atualizados
-- [x] Quality gate de implementação: 122 testes, 87,29%, zero warnings pytest
-- [x] PR #7 criado
-- [ ] CI do head documental final
-- [ ] Merge em `develop`
+- [x] FastAPI lifespan e `engine.dispose()` no shutdown
+- [x] Migrations externas via Alembic
+- [x] `reset_db()` restrito a development/test
+- [x] Pydantic V2/ConfigDict/SettingsConfigDict
+- [x] `ENVIRONMENT`, DEBUG e SECRET_KEY seguros
+- [x] UTC comum e stale-processing corrigido
+- [x] Testes e ADR-022
+- [x] Quality gate: 122 testes, 87,29%, zero warnings no fechamento
+- [x] PR #7 e merge em `develop`
+- [x] CI pós-merge verde
 
-### P0.7 — itens antecipados para restaurar o gate
+### Sprint 6A — P0.7 Qualidade e governança — EM FECHAMENTO
 
-- [x] CI em `develop`
-- [x] PRs para `develop`
-- [x] `workflow_dispatch`
-- [x] permissões mínimas de leitura
-- [x] concurrency/cancelamento de runs redundantes
+- [x] `actions/checkout@v6` e `actions/setup-python@v6`
+- [x] CI em `main`, `develop` e `agent/**`
+- [x] PRs para `main`/`develop` e `workflow_dispatch`
+- [x] permissões mínimas e concurrency
+- [x] Python 3.11 baseline + Python 3.12 compatibility gate
+- [x] Ruff bloqueante (`F`/`E9`)
+- [x] mypy bloqueante
+- [x] migration integrity explícito
+- [x] Bandit medium/high bloqueante
+- [x] `pip-audit` runtime bloqueante
+- [x] separar runtime (`requirements.txt`) e ferramentas (`requirements-dev.txt`)
+- [x] remover dependências de exportação ainda não implementadas do runtime
+- [x] remediar 27 advisories encontrados na auditoria inicial
+- [x] runtime auditado: `No known vulnerabilities found`
+- [x] bind seguro padrão `127.0.0.1`
+- [x] TestClient migrado para `httpx2`
+- [x] GitFlow adaptado e Conventional Commits formalizados
+- [x] Python documentado alinhado a 3.11/3.12 realmente testados
+- [x] ADR-023 e decisão técnica
+- [ ] quality gate do head documental final
+- [ ] PR e merge em `develop`
+- [ ] CI/Quality pós-merge
+- [!] proteção da `main`: bloqueada por permissão administrativa da integração (403); controle externo pendente
 
 ---
 
 ## P0 — Estabilização restante
-
-### P0.7 — Qualidade e governança
-
-- [ ] Adicionar verificação explícita de migrations ao CI
-- [ ] Adicionar Ruff
-- [ ] Adicionar type checking
-- [ ] Adicionar auditoria de dependências e segurança
-- [ ] Atualizar GitHub Actions com runtime não depreciado
-- [ ] Proteger `main`
-- [ ] Formalizar GitFlow adaptado e Conventional Commits
-- [ ] Alinhar versão Python documentada com a suportada/testada
 
 ### P0.8 — Documentação
 
@@ -167,6 +166,6 @@
 - [ ] Busca textual
 - [ ] Exportação Markdown, TXT, DOCX e PDF
 
-**Document Version:** 1.8  
+**Document Version:** 1.9  
 **Last Updated:** 2026-08-16  
 **Status:** Active
