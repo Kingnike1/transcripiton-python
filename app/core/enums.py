@@ -43,7 +43,10 @@ class ProcessingStatus(str, Enum):
             self.CREATED: [self.RECORDING, self.AUDIO_UPLOADED, self.FAILED],
             self.RECORDING: [self.AUDIO_UPLOADED, self.FAILED],
             self.AUDIO_UPLOADED: [self.TRANSCRIBING, self.FAILED],
-            self.TRANSCRIBING: [self.TRANSCRIBED, self.FAILED],
+            # Preserve the pre-Sprint-7 direct pipeline transition while also
+            # supporting TRANSCRIBED as the durable completion state for the
+            # standalone transcription vertical slice.
+            self.TRANSCRIBING: [self.TRANSCRIBED, self.DIARIZING, self.FAILED],
             self.TRANSCRIBED: [self.DIARIZING, self.SUMMARIZING],
             self.DIARIZING: [self.SUMMARIZING, self.FAILED],
             self.SUMMARIZING: [self.COMPLETED, self.FAILED],
