@@ -1,27 +1,54 @@
-"""Server-rendered routes for the internal AMIP interface."""
+"""Server-rendered routes for the AMIP interface."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_meeting_service
+from app.database.session import get_db
+from app.services.auth_service import AuthService, SESSION_COOKIE_NAME
 from app.services.meeting_service import MeetingService
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="templates")
 
 
+def _web_user(request: Request, db: Session):
+    auth = AuthService(db)
+    if not auth.authentication_enabled():
+        return None
+    return auth.user_from_token(request.cookies.get(SESSION_COOKIE_NAME))
+
+
+@router.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, db: Session = Depends(get_db)):
+    auth = AuthService(db)
+    user = auth.user_from_token(request.cookies.get(SESSION_COOKIE_NAME)) if auth.authentication_enabled() else None
+    if user is not None:
+        return RedirectResponse("/meetings", status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "auth.html",
+        {"authentication_enabled": auth.authentication_enabled()},
+    )
+
+
 @router.get("/meetings", response_class=HTMLResponse)
 def meetings_page(
     request: Request,
+    db: Session = Depends(get_db),
     service: MeetingService = Depends(get_meeting_service),
-) -> HTMLResponse:
-    """Render the meeting workspace."""
-    meetings = service.get_all(skip=0, limit=100)
+):
+    user = _web_user(request, db)
+    if AuthService(db).authentication_enabled() and user is None:
+        return RedirectResponse("/login", status_code=303)
+    owner_id = user.id if user is not None else None
+    meetings = service.get_all(skip=0, limit=100, owner_id=owner_id)
     return templates.TemplateResponse(
         request,
         "meetings.html",
-        {"meetings": meetings},
+        {"meetings": meetings, "current_user": user},
     )
 
 
@@ -29,14 +56,18 @@ def meetings_page(
 def meeting_detail_page(
     meeting_id: int,
     request: Request,
+    db: Session = Depends(get_db),
     service: MeetingService = Depends(get_meeting_service),
-) -> HTMLResponse:
-    """Render one meeting and let the browser orchestrate the existing APIs."""
-    meeting = service.get_by_id(meeting_id)
+):
+    user = _web_user(request, db)
+    if AuthService(db).authentication_enabled() and user is None:
+        return RedirectResponse("/login", status_code=303)
+    owner_id = user.id if user is not None else None
+    meeting = service.get_by_id(meeting_id, owner_id=owner_id)
     if meeting is None:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return templates.TemplateResponse(
         request,
         "meeting_detail.html",
-        {"meeting": meeting},
+        {"meeting": meeting, "current_user": user},
     )
