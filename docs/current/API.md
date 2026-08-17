@@ -1,12 +1,8 @@
 # API atual do AMIP
 
-Este documento descreve **somente endpoints implementados**. A especificação OpenAPI do FastAPI é a referência executável.
+Este documento descreve somente endpoints implementados. A especificação OpenAPI do FastAPI é a referência executável.
 
 Base local padrão: `http://localhost:8000`.
-
-## Erros públicos
-
-Erros normalizados incluem `status`, `code`, `detail` e `request_id`, além do header `X-Request-ID`. SQL, secrets, paths e stack traces permanecem internos.
 
 ## Reuniões
 
@@ -21,80 +17,68 @@ Erros normalizados incluem `status`, `code`, `detail` e `request_id`, além do h
 - `POST /api/meetings/{meeting_id}/audio`
 - `GET /api/meetings/{meeting_id}/audio`
 
-O upload usa streaming/staging, limite durante escrita, inspeção por `ffprobe` e no máximo um áudio ativo por reunião. `file_path` não faz parte do contrato público.
-
 ## Jobs persistentes
 
 - `POST /api/meetings/{meeting_id}/jobs/transcription`
 - `POST /api/meetings/{meeting_id}/jobs/diarization`
+- `POST /api/meetings/{meeting_id}/jobs/analysis`
 - `GET /api/jobs/{job_id}`
 - `GET /api/meetings/{meeting_id}/jobs`
 - `DELETE /api/jobs/{job_id}`
 
-Jobs usam `PENDING`, `RUNNING`, `RETRYING`, `COMPLETED`, `FAILED` e `CANCELLED`, com claim, lease, heartbeat, retry e recuperação stale.
+O job de análise usa `JobType.SUMMARIZE` e só pode ser criado quando a reunião está `DIARIZED` ou já `SUMMARIZING`.
 
 ## Transcrição
 
-```http
-GET /api/meetings/{meeting_id}/transcription
-```
-
-Retorna texto, idioma e segmentos persistidos com timestamps/confiança quando disponíveis.
+`GET /api/meetings/{meeting_id}/transcription`
 
 ## Diarização
 
-```http
-GET /api/meetings/{meeting_id}/diarization
-```
+`GET /api/meetings/{meeting_id}/diarization`
 
-Retorna os segmentos com `speaker_label`, timestamps e texto reconciliado. Na Stack 11 a resposta também inclui os participantes da reunião e, por segmento, `participant_name` e `participant_confirmed`.
+Retorna speaker labels, timestamps, texto reconciliado e identidade do participante quando confirmada.
 
-## Participantes — Stack 11
+## Participantes
 
-### Listar identidades
+- `GET /api/meetings/{meeting_id}/participants`
+- `PATCH /api/meetings/{meeting_id}/participants/{speaker_label}`
 
-```http
-GET /api/meetings/{meeting_id}/participants
-```
+## Inteligência por LLM — Stack 12
 
-Cada item contém `speaker_label`, `display_name` e `confirmed`.
-
-### Editar/confirmar identidade
+### Consultar análise
 
 ```http
-PATCH /api/meetings/{meeting_id}/participants/{speaker_label}
-Content-Type: application/json
+GET /api/meetings/{meeting_id}/analysis
 ```
 
-Exemplo:
+A resposta contém:
 
-```json
-{
-  "display_name": "Pablo",
-  "confirmed": true
-}
-```
+- `summary`;
+- `action_items`;
+- `decisions`;
+- `risks`;
+- `open_questions`;
+- `follow_up_tasks`;
+- `provider`;
+- `model_name`.
 
-Uma identidade marcada como confirmada exige nome não vazio. O mapeamento é local à reunião; não representa reconhecimento biométrico global entre reuniões.
+Itens estruturados podem conter `owner` e uma lista de `evidence` com `speaker_label`, `participant_name`, `start_time`, `end_time` e `quote`.
+
+A análise é produzida fora do request HTTP pelo worker. O provider inicial é Ollama com modelo local configurável; a saída é validada por JSON Schema/Pydantic antes da persistência.
 
 ## Interface web
 
 - `GET /meetings`
 - `GET /meetings/{meeting_id}`
 
-A tela de detalhe permite upload, transcrição, diarização e confirmação/edição dos participantes.
-
 ## Health
 
-```http
-GET /health
-```
+`GET /health`
 
-Versão da aplicação na Stack 11: `0.7.0`.
+Versão da aplicação na Stack 12: `0.8.0`.
 
 ## Ainda não implementado
 
-- inteligência por LLM;
 - autenticação/autorização;
 - infraestrutura production-ready;
 - busca;
