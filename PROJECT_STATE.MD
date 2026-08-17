@@ -4,77 +4,86 @@
 
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-16  
-**Sprint atual:** Sprint 6B — Jobs persistentes  
-**Branch:** `agent/sprint-6b-persistent-jobs`  
+**Sprint atual:** Sprint 7 — Transcrição real  
+**Branch:** `agent/sprint-7-transcription`  
 **Branch base / integração:** `develop`  
-**Status:** implementação da 6B concluída na branch; documentação/PR e gates finais em fechamento
+**Status:** implementação funcional concluída na branch; fechamento por PR/CI em andamento
 
 ## Baseline
 
-P0.1–P0.8 estão integradas em `develop` pelos PRs #2–#9. O merge da P0.8 é `2e3e0ca32ae20fd8ee70f6e2e5c97ea328b82360`, com CI e Quality pós-merge verdes.
+A Sprint 6B está integrada em `develop` e fornece a base durável de processamento: `ProcessingJob`, worker separado, claim, lease, heartbeat, retry, recovery, progresso e API de acompanhamento.
 
-`main` continua como release estável anterior à Sprint 6A; branch protection administrativa permanece pendente por falta de permissão da integração.
+A Sprint 7 está 23 commits à frente de `develop` e adiciona o primeiro vertical slice de transcrição real do projeto.
 
-## Sprint 6B — entregue na branch
+## Sprint 7 — entregue na branch
 
-- [x] `ProcessingJob` persistente.
-- [x] migration `0004_processing_jobs`.
-- [x] estados `PENDING/RUNNING/RETRYING/COMPLETED/FAILED/CANCELLED`.
-- [x] progresso, tentativas, payload, resultado e erro persistidos.
-- [x] `available_at`, lease, lock e heartbeat.
-- [x] índice único parcial: no máximo um job ativo por reunião/tipo.
-- [x] criação idempotente com defesa no banco.
-- [x] claim otimista e recuperação de lease stale.
-- [x] retry até `max_attempts`.
-- [x] worker separado do FastAPI.
-- [x] worker só reclama tipos com handler registrado.
-- [x] API para criar job de transcrição, consultar, listar por reunião e cancelar pendentes.
-- [x] fila/singleton em memória removidos.
-- [x] `ProcessingService` migrado para jobs persistentes.
-- [x] testes de persistência em nova sessão, ownership, stale recovery, retry e worker.
-- [x] migration integrity atualizada para `processing_jobs`.
-- [x] ADR-025.
+- [x] provider local `faster-whisper` isolado atrás de `ITranscriber`.
+- [x] configuração inicial: modelo `base`, CPU, `int8`, beam size e VAD configuráveis.
+- [x] detecção automática de idioma ou idioma fixo configurável.
+- [x] consumo completo do generator do faster-whisper.
+- [x] normalização de texto, timestamps e confiança por segmento.
+- [x] `Transcription` persistida por áudio.
+- [x] `TranscriptionSegment` persistido com sequência, início, fim, texto e confiança.
+- [x] migration `0005_transcription_segments`.
+- [x] estado de reunião `TRANSCRIBING` → `TRANSCRIBED`.
+- [x] handler durável `TRANSCRIBE` integrado ao `JobWorker`.
+- [x] heartbeat permanece ativo enquanto o provider executa transcrições longas.
+- [x] retry recuperável não marca a reunião como `FAILED`; apenas falha terminal faz isso.
+- [x] idempotência: resultado já persistido é reutilizado.
+- [x] proteção contra path traversal ao resolver o arquivo de áudio.
+- [x] API `GET /api/meetings/{meeting_id}/transcription` com segmentos.
+- [x] dependências pesadas do STT isoladas em `requirements-worker.txt`.
+- [x] testes com provider fake e adapter fake, sem download de modelo no CI.
 
-## Validação já obtida
+## Validação de fechamento
 
-Head funcional antes do fechamento documental:
+O código da Sprint 7 inclui testes para:
 
-- Python 3.11: **117 testes aprovados**;
-- cobertura: **86,95%**;
-- Python 3.12: verde;
-- Ruff: verde;
-- mypy: verde;
-- migrations: verdes;
-- Bandit: verde;
-- `pip-audit`: verde.
+- mapeamento do adapter faster-whisper;
+- persistência ordenada dos segmentos;
+- transição para `TRANSCRIBED`;
+- execução do worker + persistência ponta a ponta com provider fake;
+- falha terminal segura;
+- rejeição de path fora do storage;
+- retorno da transcrição/segmentos pela API.
 
-## Próximo gate
+O head atual da branch é `28311d44f29ee8174360414f7372d372879825c7`.
 
-Após sincronizar arquitetura/API/banco/backlog/decisões:
+## Gate final da Sprint 7
 
-1. CI + Quality no head documental final;
-2. PR da Sprint 6B para `develop`;
-3. merge somente com gates verdes;
-4. CI + Quality pós-merge;
-5. iniciar Sprint 7 — primeira transcrição real com um único provider.
+1. abrir PR `agent/sprint-7-transcription` → `develop`;
+2. executar CI + Quality no PR;
+3. corrigir qualquer gate vermelho;
+4. merge somente com os gates verdes;
+5. confirmar CI/Quality pós-merge.
 
-## Capacidade após a 6B
+A validação com áudio real usando o modelo Whisper permanece um smoke test operacional local, pois baixar/carregar o modelo não deve fazer parte do CI automatizado.
+
+## Capacidade após a Sprint 7
 
 ### Funcional
 
 - CRUD de reuniões;
 - upload/armazenamento de áudio;
 - jobs duráveis e worker separado;
-- API de acompanhamento de processamento;
-- base pronta para transcrição real.
+- retry/heartbeat/recovery;
+- transcrição real local com faster-whisper;
+- transcrição e segmentos persistidos;
+- consulta da transcrição pela API.
+
+### Próxima prioridade
+
+**Sprint 8 — Interface utilizável:** criar o primeiro fluxo humano ponta a ponta para criar reunião, enviar áudio, iniciar processamento, acompanhar o job e visualizar a transcrição.
 
 ### Ainda não funcional
 
-- provider real de transcrição;
-- transcrição persistida/segmentos;
-- interface de uso ponta a ponta;
-- deploy local simplificado para usuário final;
-- diarização/LLM e recursos posteriores.
+- interface completa de uso ponta a ponta;
+- empacotamento simplificado para uso interno;
+- diarização de speakers;
+- identificação de participantes;
+- análise por LLM, resumos e action items;
+- autenticação/autorização;
+- deploy público production-ready.
 
-**Document Version:** 3.0  
+**Document Version:** 4.0  
 **Status:** Active
