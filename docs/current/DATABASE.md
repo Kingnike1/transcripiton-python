@@ -4,36 +4,40 @@
 
 - SQLAlchemy 2.x;
 - SQLite para uso local/testes;
-- PostgreSQL planejado quando houver necessidade real;
+- PostgreSQL planejado na Stack 14 quando houver necessidade real;
 - Alembic como fonte oficial do schema;
 - UTC como semântica temporal.
 
 ## Schema atual
 
 ```text
-meetings
-  ├── audios
-  │     └── transcriptions
-  │            ├── transcription_segments
-  │            └── speaker_segments
-  ├── participants
-  ├── meeting_analysis (1:1)
-  └── processing_jobs
+users
+  ├── auth_sessions
+  └── meetings
+        ├── audios
+        │     └── transcriptions
+        │            ├── transcription_segments
+        │            └── speaker_segments
+        ├── participants
+        ├── meeting_analysis (1:1)
+        └── processing_jobs
 ```
 
-## Participantes — Stack 11
+## Autenticação — Stack 13
 
-`participants` representa a identidade humana associada a um rótulo de diarização dentro de uma reunião.
+`users` armazena e-mail normalizado, hash de senha, status ativo e timestamps. Senha em texto puro nunca é persistida.
 
-Campos principais:
+`auth_sessions` armazena `user_id`, `token_hash`, expiração e criação. O token entregue ao navegador é opaco e não é persistido diretamente.
 
-- `meeting_id`;
-- `speaker_label`;
-- `display_name` opcional;
-- `confirmed`;
-- `created_at` / `updated_at`.
+`meetings.owner_id` referencia `users.id`. O campo permanece nullable apenas para permitir evolução de bancos legados; a primeira conta criada faz claim de reuniões antigas sem owner e o fluxo autenticado cria novas reuniões sempre com owner.
 
-A constraint `uq_participants_meeting_speaker_label` garante um único registro por `(meeting_id, speaker_label)`. A migration `0007_participant_identities` cria a tabela e faz backfill dos rótulos já existentes em `speaker_segments`.
+## Dados de IA
+
+- `transcriptions`: resultado principal do STT;
+- `transcription_segments`: texto temporalizado;
+- `speaker_segments`: resultado temporal da diarização;
+- `participants`: identidade humana por reunião;
+- `meeting_analysis`: inteligência estruturada + provider/modelo.
 
 ## Cadeia de migrations
 
@@ -51,6 +55,10 @@ A constraint `uq_participants_meeting_speaker_label` garante um único registro 
 0006_speaker_segments
   ↓
 0007_participant_identities
+  ↓
+0008_analysis_provider_metadata
+  ↓
+0009_auth_ownership
 ```
 
 Banco novo ou atualização:
@@ -60,15 +68,6 @@ alembic upgrade head
 ```
 
 Web e worker não criam/migram schema automaticamente.
-
-## Dados de IA persistidos
-
-- `transcriptions`: resultado principal do STT;
-- `transcription_segments`: texto temporalizado;
-- `speaker_segments`: resultado temporal da diarização;
-- `participants`: identidade humana editável/confirmável por reunião.
-
-O nome do participante não é duplicado em cada `speaker_segment`; a API faz o enriquecimento por `speaker_label`.
 
 ---
 
