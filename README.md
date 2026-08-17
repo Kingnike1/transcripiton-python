@@ -1,129 +1,62 @@
 # AMIP — AI Meeting Intelligence Platform
 
-O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões e transformá-lo progressivamente em transcrição e inteligência estruturada.
+O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas e evoluir até inteligência estruturada.
 
-> **Estado atual:** reuniões, upload, jobs persistentes e a primeira transcrição real local com `faster-whisper` estão implementados. A próxima prioridade é fechar uma interface utilizável ponta a ponta.
+> **Estado atual:** o fluxo local já cobre reunião → áudio → transcrição → diarização → identificação manual dos participantes. A próxima prioridade é a Stack 12, inteligência por LLM.
 
 ## O que funciona hoje
 
-- CRUD de reuniões via API;
-- upload de áudio por reunião;
-- streaming/chunks com staging temporário;
-- validação de arquivo e inspeção por `ffprobe`;
-- persistência de metadados técnicos do áudio;
-- Unit of Work e transações no Service Layer;
-- migrations Alembic;
-- proteção contra dois áudios ativos na mesma reunião;
-- erros públicos sanitizados + `X-Request-ID`;
-- jobs persistentes com progresso, tentativas, resultado e erro;
-- worker separado do processo HTTP;
-- claim, lease, heartbeat, retry e stale recovery;
+- CRUD e interface de reuniões;
+- upload de áudio com streaming/staging e inspeção por `ffprobe`;
+- Alembic e migrations;
+- jobs persistentes + worker separado;
+- claim, lease, heartbeat, retry e recovery;
 - transcrição local com `faster-whisper`;
-- defaults de STT: modelo `base`, CPU, `int8` e VAD;
-- persistência de texto, idioma e segmentos com timestamps/confiança;
-- estado de reunião `TRANSCRIBING → TRANSCRIBED`;
-- API para consultar a transcrição e seus segmentos;
-- CI/Quality em Python 3.11 e 3.12;
-- Ruff, mypy, migration checks, Bandit e `pip-audit` bloqueantes.
+- segmentos/timestamps persistidos;
+- diarização local com `pyannote.audio` quando `HUGGINGFACE_TOKEN` está configurado;
+- `speaker_segments` reconciliados com o texto;
+- identificação de participantes: `SPEAKER_XX` → nome humano editável/confirmável;
+- UI para iniciar transcrição/diarização e confirmar participantes;
+- Dockerfile/Compose com migrations, web e worker;
+- volumes persistentes e cache de modelos;
+- CI/Quality com Python 3.11/3.12, Ruff, mypy, migrations, Bandit e `pip-audit`.
 
 ## Ainda não implementado
 
-- interface completa de reuniões/processamento/transcrição;
-- empacotamento simples para uso interno;
-- diarização;
-- identificação de participantes;
-- LLM/resumos/action items;
+- inteligência por LLM;
 - autenticação/autorização;
-- busca/exportação;
-- deployment público production-ready.
+- infraestrutura pública production-ready;
+- busca;
+- exportação;
+- gravação por microfone.
 
-## Arquitetura
-
-```text
-FastAPI
-  ↓
-Application Services
-  ↓
-SqlAlchemyUnitOfWork
-  ↓
-Repositories
-  ↓
-SQLAlchemy / SQLite
-
-Upload/API
-  ↓
-ProcessingJob (DB)
-  ↓
-JobWorker
-  ↓
-ITranscriber
-  ↓
-faster-whisper
-  ↓
-Transcription + TranscriptionSegment
-```
-
-O projeto permanece um **monólito modular**. O STT pesado roda no worker, não no processo web.
-
-## Setup local
-
-### Pré-requisitos
-
-- Python 3.11 ou 3.12;
-- Git;
-- `ffprobe` disponível para upload real de áudio.
-
-### Instalação da aplicação web
-
-```bash
-git clone https://github.com/Kingnike1/transcripiton-python.git
-cd transcripiton-python
-python -m venv .venv
-```
-
-Ative o ambiente virtual e instale:
-
-```bash
-pip install -r requirements.txt -r requirements-dev.txt
-```
-
-Para executar o worker com transcrição real, instale também:
-
-```bash
-pip install -r requirements-worker.txt
-```
-
-Configure:
-
-```bash
-cp .env.example .env
-```
-
-Crie/atualize o banco:
-
-```bash
-alembic upgrade head
-```
-
-Execute a API:
-
-```bash
-uvicorn main:app --reload
-```
-
-Aplicação:
+## Pipeline atual
 
 ```text
-http://127.0.0.1:8000
+Meeting
+  ↓
+Audio
+  ↓ TRANSCRIBE
+Transcription + segments
+  ↓ DIARIZE
+Speaker segments
+  ↓ confirmação humana
+Participants
+  ↓
+Stack 12 — LLM intelligence
 ```
 
-OpenAPI:
+## Execução local com Docker
 
-```text
-http://127.0.0.1:8000/docs
+Configure `.env` e execute:
+
+```bash
+docker compose up --build
 ```
 
-O worker é executado separadamente conforme a configuração atual do projeto. Na primeira transcrição real, o `faster-whisper` poderá baixar o modelo configurado e manter cache local.
+O Compose executa migrations antes de web/worker. Para diarização real, configure `HUGGINGFACE_TOKEN`; a transcrição continua disponível sem esse token.
+
+Também é possível executar via ambiente Python conforme `docs/current/DEPLOYMENT.md`.
 
 ## Testes e quality
 
@@ -137,49 +70,31 @@ bandit -q main.py -ll
 pip-audit -r requirements.txt
 ```
 
-Os testes de CI usam providers fake e não exigem download do modelo Whisper.
-
-Os workflows `CI` e `Quality` executam esses gates automaticamente.
-
 ## Fluxo Git
 
 ```text
 main      → release estável
 develop   → integração
-agent/*   → trabalho por Sprint/Stack
+agent/*   → trabalho por Stack
 ```
 
-Commits seguem Conventional Commits. As regras completas estão em [`PROJECT_GOVERNANCE.md`](PROJECT_GOVERNANCE.md).
+Commits seguem Conventional Commits. Consulte [`PROJECT_GOVERNANCE.md`](PROJECT_GOVERNANCE.md).
 
 ## Documentação
 
-Comece por [`docs/README.md`](docs/README.md).
-
-### Estado atual
-
-- [Arquitetura](docs/current/ARCHITECTURE.md)
-- [Banco](docs/current/DATABASE.md)
-- [API](docs/current/API.md)
-- [Execução/deployment atual](docs/current/DEPLOYMENT.md)
-- [Contribuição](docs/current/CONTRIBUTING.md)
-
-### Planejamento
-
+- [Mapa documental](docs/README.md)
+- [Arquitetura atual](docs/current/ARCHITECTURE.md)
+- [Banco atual](docs/current/DATABASE.md)
+- [API atual](docs/current/API.md)
+- [Deployment](docs/current/DEPLOYMENT.md)
 - [Backlog](docs/06_BACKLOG.md)
-- [Roadmap de frontend](docs/roadmap/FRONTEND.md)
-- [Roadmap de IA](docs/roadmap/AI_PIPELINE.md)
-
-### Governança e estado
-
-- [Contexto](PROJECT_CONTEXT.md)
-- [Governança](PROJECT_GOVERNANCE.md)
 - [Estado atual](PROJECT_STATE.MD)
 - [Decisões técnicas](TECH_DECISIONS.md)
 - [ADRs](docs/adr/)
 
 ## Próxima etapa
 
-Depois do merge da Sprint 7, a prioridade é **Sprint 8 — Interface utilizável**, conectando criação da reunião, upload, início da transcrição, acompanhamento do job e visualização do resultado.
+**Stack 12 — Inteligência por LLM:** resumo estruturado, action items, decisões, riscos e follow-ups com rastreabilidade para transcrição e participantes.
 
 ## Licença
 
