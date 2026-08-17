@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.time import utc_now
@@ -17,6 +17,9 @@ class SpeakerSegment(Base):
     """Timestamped speaker-labelled segment associated with a transcription."""
 
     __tablename__ = "speaker_segments"
+    __table_args__ = (
+        Index("ix_speaker_segments_transcription_start", "transcription_id", "start_time"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     transcription_id: Mapped[int] = mapped_column(
