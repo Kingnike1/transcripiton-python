@@ -4,10 +4,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
 
 from app.api.analysis import router as analysis_router
 from app.api.audio import router as audio_router
@@ -38,7 +39,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="AI Meeting Intelligence Platform - Transcribe, analyze, and archive meetings",
-    version="0.9.0",
+    version="0.10.0",
     lifespan=lifespan,
 )
 
@@ -64,7 +65,20 @@ def home(request: Request) -> HTMLResponse:
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
+    """Liveness probe: process is running and able to serve HTTP."""
     return {"status": "healthy", "version": app.version}
+
+
+@app.get("/ready")
+def readiness_check() -> dict[str, str]:
+    """Readiness probe: required database dependency is reachable."""
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception as exc:
+        logger.error("Readiness database check failed: %s", exc)
+        raise HTTPException(status_code=503, detail="database unavailable") from exc
+    return {"status": "ready", "database": "reachable", "version": app.version}
 
 
 if __name__ == "__main__":

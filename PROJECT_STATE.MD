@@ -6,9 +6,9 @@
 **Última atualização:** 2026-08-17  
 **Stack atual:** Stack 14 — Infraestrutura de produção  
 **Branch de integração:** `develop`  
+**Branch da Stack 14:** `agent/stack-14-production-infra`  
 **Último merge:** PR #17 — Stack 13 Autenticação e autorização  
-**Commit de integração:** `dec0ea0e590c20a1de6ce40147d40260046aea73`  
-**Status:** Stacks 7–13 concluídas e integradas; Stack 14 é a próxima prioridade
+**Status:** Stack 14 implementada; aguardando gates e merge
 
 ## Capacidade atual
 
@@ -19,57 +19,50 @@
 - diarização local com `pyannote.audio` quando configurado;
 - identificação/confirmação de participantes;
 - inteligência estruturada local via Ollama + Qwen3;
-- usuários, login e logout;
-- senhas protegidas com `scrypt` + salt;
-- sessões opacas, persistentes e revogáveis;
-- cookie HttpOnly/SameSite e Secure fora de ambiente local;
-- ownership de reuniões por usuário;
-- isolamento de áudio, transcrição, diarização, participantes, análise e jobs pelo dono da reunião;
-- modo local legado preservado enquanto não existem contas;
-- primeira conta assume reuniões legadas sem dono;
-- Docker/Compose com migrations, web e worker.
+- autenticação, sessões revogáveis e ownership;
+- Docker/Compose para desenvolvimento;
+- baseline de produção com PostgreSQL, migrations one-shot, web, worker e backups;
+- readiness dependente do banco e liveness HTTP;
+- pooling/pre-ping de conexão para banco não-SQLite;
+- runbook de deploy, restore, observabilidade e hardening.
 
-## Stack 13 — Autenticação e autorização — CONCLUÍDA
+## Stack 14 — Infraestrutura de produção — IMPLEMENTADA
 
-- [x] entidade `User`;
-- [x] entidade `AuthSession`;
-- [x] cadastro, login, logout e status de autenticação;
-- [x] senha com `hashlib.scrypt`, salt aleatório e comparação constante;
-- [x] token de sessão opaco; somente hash SHA-256 persistido;
-- [x] sessão expira e pode ser revogada no logout;
-- [x] cookie HttpOnly/SameSite=Lax e Secure em staging/produção;
-- [x] `Meeting.owner_id`;
-- [x] primeira conta faz claim de reuniões legadas sem owner;
-- [x] reuniões novas recebem owner quando autenticação está ativa;
-- [x] listagem/pesquisa/CRUD filtrados por owner;
-- [x] proteção de áudio, transcrição, diarização, participantes, análise e jobs;
-- [x] acesso cruzado responde 404 para não revelar recurso alheio;
-- [x] UI de login/criação de conta/logout;
-- [x] modo local sem contas preservado;
-- [x] migration `0009_auth_ownership`;
-- [x] testes de sessão, hashing, legacy claim e isolamento multiusuário;
-- [x] documentação, SECURITY.md e ADR-028;
-- [x] drift de migration corrigido e validado;
-- [x] testes web migrados para schema real;
-- [x] CI + Quality + Docker verdes no PR #17;
-- [x] PR #17 integrado em `develop`.
+- [x] PostgreSQL 16 como banco de produção;
+- [x] SQLite preservado para desenvolvimento/testes;
+- [x] driver `psycopg`;
+- [x] pool SQLAlchemy configurável e `pool_pre_ping`;
+- [x] `compose.production.yaml` sem exposição pública do PostgreSQL;
+- [x] migrations Alembic executadas antes de web/worker;
+- [x] storage persistente compartilhado entre web/worker;
+- [x] `/health` para liveness;
+- [x] `/ready` validando conectividade com banco;
+- [x] backup periódico de PostgreSQL e storage;
+- [x] retenção configurável;
+- [x] runbook de restore e recomendação de cópia off-host;
+- [x] hardening operacional documentado;
+- [x] ADR-029;
+- [x] versão 0.10.0;
+- [ ] CI + Quality + Docker verdes;
+- [ ] PR integrado em `develop`.
 
 ## Próximas stacks
 
-1. Stack 14 — infraestrutura de produção;
-2. Stack 15 — busca;
-3. Stack 16 — exportação;
-4. Stack 17 — gravação por microfone.
+1. Stack 15 — busca;
+2. Stack 16 — exportação;
+3. Stack 17 — gravação por microfone.
 
 ## Pendências operacionais independentes
 
 - instalar Ollama e baixar `qwen3:4b` na máquina de uso para smoke test real;
 - smoke test com áudio real/modelos baixados na máquina de uso;
+- configurar destino off-host para backups no ambiente de produção escolhido;
+- configurar proxy/TLS e monitor externo no ambiente de produção escolhido;
 - branch protection administrativa da `main` quando permissões permitirem.
 
 ## Próxima Stack
 
-**Stack 14 — Infraestrutura de produção** deve tratar banco/storage/deploy/observabilidade/backups e hardening operacional sem transformar prematuramente o monólito em microserviços.
+Após o gate/merge da Stack 14, **Stack 15 — Busca** passa a ser a próxima prioridade.
 
-**Document Version:** 9.1  
+**Document Version:** 10.0  
 **Status:** Active

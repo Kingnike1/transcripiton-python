@@ -8,6 +8,7 @@ python-multipart==0.0.32
 # Database / migrations
 sqlalchemy==2.0.25
 alembic==1.13.1
+psycopg[binary]==3.2.10
 
 # Validation / settings
 pydantic==2.13.4
