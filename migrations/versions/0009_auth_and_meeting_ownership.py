@@ -1,14 +1,14 @@
 """add users auth sessions and meeting ownership
 
 Revision ID: 0009_auth_ownership
-Revises: 0008_analysis_provider
+Revises: 0008_analysis_provider_metadata
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "0009_auth_ownership"
-down_revision = "0008_analysis_provider"
+down_revision = "0008_analysis_provider_metadata"
 branch_labels = None
 depends_on = None
 
