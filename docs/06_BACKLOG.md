@@ -14,64 +14,40 @@
 - [x] CI/Quality, Python 3.11/3.12, Ruff, mypy, Bandit e pip-audit
 
 ### Stack 7 — Transcrição real
-
 - [x] faster-whisper
-- [x] `TRANSCRIBED`
-- [x] texto/idioma/segmentos/timestamps/confiança persistidos
-- [x] handler `TRANSCRIBE`
-- [x] API de transcrição
+- [x] persistência de texto/segmentos
+- [x] job `TRANSCRIBE`
 
 ### Stack 8 — Interface utilizável
+- [x] fluxo humano de reunião/upload/transcrição
 
-- [x] listar/criar reuniões
-- [x] detalhe da reunião
-- [x] upload de áudio
-- [x] iniciar transcrição
-- [x] acompanhar job/progresso
-- [x] visualizar transcrição/segmentos
-
-### Stack 9 — Empacotamento para uso interno
-
-- [x] Dockerfile multi-target web/worker
-- [x] Compose com migration + web + worker
-- [x] volumes persistentes
-- [x] ffmpeg/ffprobe no container
-- [x] healthcheck e smoke test
-- [x] documentação operacional/backup
+### Stack 9 — Empacotamento
+- [x] Docker/Compose, migrations, worker, healthcheck e smoke test
 
 ### Stack 10 — Diarização
-
-- [x] `pyannote.audio`
-- [x] `speaker-diarization-community-1`
-- [x] `DIARIZED`
-- [x] `speaker_segments`
-- [x] alinhamento speaker ↔ texto
-- [x] job durável `DIARIZE`
-- [x] API de consulta
+- [x] pyannote, speaker segments, job `DIARIZE` e API
 
 ### Stack 11 — Identificação de participantes
-
-- [x] entidade `Participant` por reunião
-- [x] `SPEAKER_XX` → identidade humana editável
-- [x] confirmação manual
-- [x] persistência com constraint única por reunião/rótulo
-- [x] migration com backfill de diarizações existentes
-- [x] criação automática de placeholders em novas diarizações
-- [x] APIs de listagem e edição
-- [x] diarização enriquecida com nome/confirmado
-- [x] UI para iniciar diarização e confirmar participantes
-- [x] testes e ADR-026
-
-## Stacks ainda faltantes
+- [x] `SPEAKER_XX` → identidade humana editável/confirmável
+- [x] persistência, API, UI, testes e ADR-026
 
 ### Stack 12 — Inteligência por LLM
-- [ ] resumo estruturado
-- [ ] action items
-- [ ] decisões
-- [ ] riscos
-- [ ] perguntas abertas/follow-ups
-- [ ] validação estruturada e rastreabilidade
-- [ ] atribuição a participantes quando confirmados
+- [x] Ollama local como provider padrão
+- [x] `qwen3:4b` como baseline configurável
+- [x] resumo estruturado
+- [x] action items e responsáveis
+- [x] decisões
+- [x] riscos
+- [x] perguntas abertas e follow-ups
+- [x] structured output validado por Pydantic/JSON Schema
+- [x] evidências com timestamps/speaker/citação
+- [x] atribuição a participantes confirmados
+- [x] provider/modelo persistidos
+- [x] job durável `SUMMARIZE`
+- [x] API de análise
+- [x] testes com provider fake e ADR-027
+
+## Stacks ainda faltantes
 
 ### Stack 13 — Autenticação e autorização
 - [ ] usuários/login
@@ -102,9 +78,10 @@
 
 ## Pendências operacionais independentes
 
+- [ ] instalar Ollama + `qwen3:4b` e executar smoke test real da análise
 - [ ] smoke test com áudio real/modelos baixados na máquina de uso
 - [!] branch protection administrativa da `main`, quando permissões permitirem
 
-**Document Version:** 7.0  
+**Document Version:** 8.0  
 **Last Updated:** 2026-08-17  
 **Status:** Active
