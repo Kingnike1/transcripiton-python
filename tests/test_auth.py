@@ -1,6 +1,7 @@
 """Authentication and resource-ownership tests for Stack 13."""
 
 from app.models.meeting import Meeting
+from app.models.user import User
 from app.services.auth_service import AuthService, SESSION_COOKIE_NAME
 
 
@@ -28,8 +29,10 @@ def test_first_registration_claims_legacy_meetings_and_creates_session(client, d
     assert SESSION_COOKIE_NAME in client.cookies
 
     db_session.refresh(legacy)
-    assert legacy.owner_id == response.json()["id"]
-    assert "very-secure-password" not in db_session.get(type(response), 1).__str__() if False else True
+    owner = db_session.get(User, response.json()["id"])
+    assert legacy.owner_id == owner.id
+    assert owner.password_hash.startswith("scrypt$")
+    assert "very-secure-password" not in owner.password_hash
 
     listing = client.get("/api/meetings")
     assert listing.status_code == 200
