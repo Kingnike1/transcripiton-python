@@ -6,8 +6,9 @@
 **Última atualização:** 2026-08-17  
 **Stack atual:** Stack 12 — Inteligência por LLM  
 **Branch de integração:** `develop`  
-**Stack 11:** identificação de participantes implementada em `agent/stack-11-participants`  
-**Status esperado após gate/merge:** Stacks 7–11 concluídas; Stack 12 é a próxima prioridade
+**Último merge:** PR #15 — Stack 11 Identificação de participantes  
+**Commit de integração:** `4be1554995c6ba02223d2c4ea44c71797795b5ec`  
+**Status:** Stacks 7–11 concluídas e integradas; Stack 12 é a próxima prioridade
 
 ## Capacidade atual
 
@@ -25,7 +26,7 @@
 - Docker/Compose com migrations, web e worker;
 - healthcheck, smoke test e documentação operacional.
 
-## Stack 11 — Identificação de participantes — IMPLEMENTADA
+## Stack 11 — Identificação de participantes — CONCLUÍDA
 
 - [x] entidade `Participant` por reunião;
 - [x] constraint única `(meeting_id, speaker_label)`;
@@ -38,7 +39,9 @@
 - [x] diarização retorna nome/estado de confirmação por segmento;
 - [x] UI para iniciar diarização e editar participantes;
 - [x] testes específicos da Stack 11;
-- [x] ADR-026 e documentação current sincronizados.
+- [x] ADR-026 e documentação current sincronizados;
+- [x] CI + Quality + Docker verdes no PR #15;
+- [x] PR #15 integrado em `develop`.
 
 ## Próximas stacks
 
@@ -58,5 +61,5 @@
 
 **Stack 12 — Inteligência por LLM** deve consumir transcrição, speaker segments e participantes confirmados para produzir resumo estruturado, action items, decisões, riscos e follow-ups com rastreabilidade.
 
-**Document Version:** 7.0  
+**Document Version:** 7.1  
 **Status:** Active
