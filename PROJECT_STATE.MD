@@ -4,11 +4,11 @@
 
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-17  
-**Stack atual:** Stack 14 — Infraestrutura de produção  
+**Stack atual:** Stack 15 — Busca  
 **Branch de integração:** `develop`  
-**Branch da Stack 14:** `agent/stack-14-production-infra`  
-**Último merge:** PR #17 — Stack 13 Autenticação e autorização  
-**Status:** Stack 14 implementada; aguardando gates e merge
+**Último merge:** PR #18 — Stack 14 Infraestrutura de produção  
+**Commit de integração:** `d9f7b92584d3ad1038a57e0b9859e753ccd288d7`  
+**Status:** Stacks 7–14 concluídas e integradas; Stack 15 é a próxima prioridade
 
 ## Capacidade atual
 
@@ -26,7 +26,7 @@
 - pooling/pre-ping de conexão para banco não-SQLite;
 - runbook de deploy, restore, observabilidade e hardening.
 
-## Stack 14 — Infraestrutura de produção — IMPLEMENTADA
+## Stack 14 — Infraestrutura de produção — CONCLUÍDA
 
 - [x] PostgreSQL 16 como banco de produção;
 - [x] SQLite preservado para desenvolvimento/testes;
@@ -43,8 +43,8 @@
 - [x] hardening operacional documentado;
 - [x] ADR-029;
 - [x] versão 0.10.0;
-- [ ] CI + Quality + Docker verdes;
-- [ ] PR integrado em `develop`.
+- [x] CI + Quality + Docker verdes no PR #18;
+- [x] PR #18 integrado em `develop`.
 
 ## Próximas stacks
 
@@ -62,7 +62,7 @@
 
 ## Próxima Stack
 
-Após o gate/merge da Stack 14, **Stack 15 — Busca** passa a ser a próxima prioridade.
+**Stack 15 — Busca** é a próxima prioridade.
 
-**Document Version:** 10.0  
+**Document Version:** 10.1  
 **Status:** Active
