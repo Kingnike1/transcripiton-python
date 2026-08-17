@@ -2,29 +2,30 @@
 
 O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas, identificar participantes e gerar inteligência estruturada localmente.
 
-> **Estado atual:** o fluxo local cobre reunião → áudio → transcrição → diarização → identificação de participantes → inteligência por LLM. A próxima prioridade é a Stack 13, autenticação/autorização.
+> **Estado atual:** o fluxo cobre reunião → áudio → transcrição → diarização → participantes → inteligência por LLM, agora com contas, login e isolamento por usuário. A próxima prioridade é a Stack 14, infraestrutura de produção.
 
 ## O que funciona hoje
 
 - CRUD e interface de reuniões;
-- upload de áudio com streaming/staging e inspeção por `ffprobe`;
-- Alembic e migrations;
+- upload seguro de áudio e inspeção por `ffprobe`;
 - jobs persistentes + worker separado;
 - transcrição local com `faster-whisper`;
-- diarização local com `pyannote.audio` quando configurado;
-- identificação de participantes `SPEAKER_XX` → nome humano confirmável;
-- inteligência estruturada local via Ollama;
-- baseline `qwen3:4b` configurável por `.env`;
-- resumo, action items, decisões, riscos, perguntas abertas e follow-ups;
-- saída do LLM validada por JSON Schema/Pydantic;
-- evidências com speaker/timestamps/citações para rastreabilidade;
-- provider/modelo persistidos junto à análise;
-- Docker/Compose com migrations, web e worker;
-- CI/Quality com Python 3.11/3.12, Ruff, mypy, migrations, Bandit e `pip-audit`.
+- diarização com `pyannote.audio` quando configurado;
+- identificação humana de `SPEAKER_XX`;
+- inteligência estruturada via Ollama + `qwen3:4b` configurável;
+- resumo, action items, decisões, riscos e follow-ups rastreáveis;
+- usuários, cadastro, login e logout;
+- senha com scrypt + salt;
+- sessão opaca persistente/revogável;
+- ownership de reuniões e isolamento de todos os recursos derivados;
+- modo local legado preservado enquanto não houver contas;
+- Docker/Compose, migrations e quality gates.
 
 ## Pipeline atual
 
 ```text
+User
+  ↓ owns
 Meeting
   ↓
 Audio
@@ -40,9 +41,19 @@ Ollama / Qwen3
 Structured meeting intelligence
 ```
 
-## LLM local
+## Autenticação
 
-O provider inicial da Stack 12 é Ollama. Por padrão:
+Acesse:
+
+```text
+http://127.0.0.1:8000/login
+```
+
+Enquanto nenhuma conta existe, o AMIP mantém o modo local anterior. Ao criar a primeira conta, reuniões legadas sem proprietário são associadas a ela. Depois disso, o workspace e APIs protegidas exigem sessão válida e cada usuário acessa apenas suas próprias reuniões.
+
+A sessão usa cookie `HttpOnly`/`SameSite=Lax`; em staging/produção o cookie também é `Secure`. O banco guarda somente o hash do token de sessão.
+
+## LLM local
 
 ```env
 LLM_PROVIDER=ollama
@@ -50,7 +61,7 @@ OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3:4b
 ```
 
-A análise não exige API paga. O modelo é configurável e o domínio não depende diretamente de Ollama, permitindo adapters futuros sem reescrever o contrato da análise.
+A análise não exige API paga. O domínio não depende diretamente de Ollama e pode receber adapters futuros.
 
 ## Execução local com Docker
 
@@ -60,7 +71,7 @@ Configure `.env` e execute:
 docker compose up --build
 ```
 
-Para diarização real, configure `HUGGINGFACE_TOKEN`. Para análise real, instale/inicie Ollama na máquina de uso e garanta que o worker consiga alcançar `OLLAMA_URL`, depois baixe o modelo configurado.
+Para diarização real, configure `HUGGINGFACE_TOKEN`. Para análise real, instale/inicie Ollama na máquina de uso e garanta que o worker alcance `OLLAMA_URL`.
 
 ## Testes e quality
 
@@ -96,7 +107,7 @@ agent/*   → trabalho por Stack
 
 ## Próxima etapa
 
-**Stack 13 — Autenticação e autorização:** usuários/login, ownership e autorização por recurso, preparando o AMIP para uso multiusuário.
+**Stack 14 — Infraestrutura de produção:** banco/storage/backups/observabilidade/hardening e deployment production-ready, preservando o monólito modular até existir evidência para outra arquitetura.
 
 ## Licença
 
