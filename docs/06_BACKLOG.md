@@ -44,10 +44,11 @@ Entregas principais:
 - [x] ADR-025
 - [x] migration integrity inclui `processing_jobs`
 
-## Sprint 7 — Transcrição real — FECHAMENTO
+### Sprint 7 — Transcrição real — CONCLUÍDA
 
 - [x] modelar `TranscriptionSegment`
 - [x] definir estado `TRANSCRIBED` e fluxo `AUDIO_UPLOADED → TRANSCRIBING → TRANSCRIBED`
+- [x] preservar compatibilidade `TRANSCRIBING → DIARIZING` para o pipeline futuro
 - [x] escolher um provider inicial: `faster-whisper`
 - [x] configurar modelo `base`, CPU e `int8` como defaults locais
 - [x] manter dependência pesada isolada em `requirements-worker.txt`
@@ -60,11 +61,12 @@ Entregas principais:
 - [x] teste do adapter sem carregar modelo real
 - [x] idempotência do resultado persistido
 - [x] proteção contra path traversal no storage
-- [ ] CI + Quality do PR para `develop`
-- [ ] merge + pós-merge verde
+- [x] CI do PR #11 verde
+- [x] Quality do PR #11 verde
+- [x] merge para `develop`
 - [ ] smoke test operacional com áudio real/modelo baixado localmente
 
-## Sprint 8 — Interface utilizável — PRÓXIMA
+## Sprint 8 — Interface utilizável — ATUAL
 
 - [ ] listar/criar reuniões
 - [ ] detalhe da reunião
@@ -96,6 +98,6 @@ Entregas principais:
 - [ ] exportação
 - [ ] gravação por microfone
 
-**Document Version:** 4.0  
+**Document Version:** 4.1  
 **Last Updated:** 2026-08-16  
 **Status:** Active
