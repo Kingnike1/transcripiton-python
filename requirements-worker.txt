@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Local speech-to-text runtime; kept out of the FastAPI-only dependency surface.
+faster-whisper==1.2.1

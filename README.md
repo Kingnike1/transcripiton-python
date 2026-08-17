@@ -1,8 +1,8 @@
 # AMIP — AI Meeting Intelligence Platform
 
-O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões e, progressivamente, transformá-lo em transcrição e inteligência estruturada.
+O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões e transformá-lo progressivamente em transcrição e inteligência estruturada.
 
-> **Estado atual:** o backend de reuniões/upload está funcional e a fundação técnica foi estabilizada. Jobs persistentes, transcrição real, diarização e análise por LLM ainda não estão implementados.
+> **Estado atual:** reuniões, upload, jobs persistentes e a primeira transcrição real local com `faster-whisper` estão implementados. A próxima prioridade é fechar uma interface utilizável ponta a ponta.
 
 ## O que funciona hoje
 
@@ -15,17 +15,24 @@ O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniõe
 - migrations Alembic;
 - proteção contra dois áudios ativos na mesma reunião;
 - erros públicos sanitizados + `X-Request-ID`;
-- lifecycle/configuração seguros;
+- jobs persistentes com progresso, tentativas, resultado e erro;
+- worker separado do processo HTTP;
+- claim, lease, heartbeat, retry e stale recovery;
+- transcrição local com `faster-whisper`;
+- defaults de STT: modelo `base`, CPU, `int8` e VAD;
+- persistência de texto, idioma e segmentos com timestamps/confiança;
+- estado de reunião `TRANSCRIBING → TRANSCRIBED`;
+- API para consultar a transcrição e seus segmentos;
 - CI/Quality em Python 3.11 e 3.12;
 - Ruff, mypy, migration checks, Bandit e `pip-audit` bloqueantes.
 
 ## Ainda não implementado
 
-- jobs persistentes e worker recuperável;
-- Whisper/provider real de transcrição;
+- interface completa de reuniões/processamento/transcrição;
+- empacotamento simples para uso interno;
 - diarização;
+- identificação de participantes;
 - LLM/resumos/action items;
-- UI completa de reuniões/processamento;
 - autenticação/autorização;
 - busca/exportação;
 - deployment público production-ready.
@@ -43,12 +50,20 @@ Repositories
   ↓
 SQLAlchemy / SQLite
 
-Services
+Upload/API
   ↓
-Storage local / ffprobe / providers futuros
+ProcessingJob (DB)
+  ↓
+JobWorker
+  ↓
+ITranscriber
+  ↓
+faster-whisper
+  ↓
+Transcription + TranscriptionSegment
 ```
 
-O projeto permanece um **monólito modular**. A próxima evolução arquitetural é um worker separado com jobs persistidos, não microservices.
+O projeto permanece um **monólito modular**. O STT pesado roda no worker, não no processo web.
 
 ## Setup local
 
@@ -58,12 +73,11 @@ O projeto permanece um **monólito modular**. A próxima evolução arquitetural
 - Git;
 - `ffprobe` disponível para upload real de áudio.
 
-### Instalação
+### Instalação da aplicação web
 
 ```bash
 git clone https://github.com/Kingnike1/transcripiton-python.git
 cd transcripiton-python
-
 python -m venv .venv
 ```
 
@@ -71,6 +85,12 @@ Ative o ambiente virtual e instale:
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Para executar o worker com transcrição real, instale também:
+
+```bash
+pip install -r requirements-worker.txt
 ```
 
 Configure:
@@ -85,7 +105,7 @@ Crie/atualize o banco:
 alembic upgrade head
 ```
 
-Execute:
+Execute a API:
 
 ```bash
 uvicorn main:app --reload
@@ -103,6 +123,8 @@ OpenAPI:
 http://127.0.0.1:8000/docs
 ```
 
+O worker é executado separadamente conforme a configuração atual do projeto. Na primeira transcrição real, o `faster-whisper` poderá baixar o modelo configurado e manter cache local.
+
 ## Testes e quality
 
 ```bash
@@ -115,6 +137,8 @@ bandit -q main.py -ll
 pip-audit -r requirements.txt
 ```
 
+Os testes de CI usam providers fake e não exigem download do modelo Whisper.
+
 Os workflows `CI` e `Quality` executam esses gates automaticamente.
 
 ## Fluxo Git
@@ -122,7 +146,7 @@ Os workflows `CI` e `Quality` executam esses gates automaticamente.
 ```text
 main      → release estável
 develop   → integração
-agent/stack-* → trabalho por Stack
+agent/*   → trabalho por Sprint/Stack
 ```
 
 Commits seguem Conventional Commits. As regras completas estão em [`PROJECT_GOVERNANCE.md`](PROJECT_GOVERNANCE.md).
@@ -155,7 +179,7 @@ Comece por [`docs/README.md`](docs/README.md).
 
 ## Próxima etapa
 
-Depois da organização documental P0.8, a prioridade técnica é **Sprint 6B — Jobs persistentes**, necessária antes da primeira transcrição real.
+Depois do merge da Sprint 7, a prioridade é **Sprint 8 — Interface utilizável**, conectando criação da reunião, upload, início da transcrição, acompanhamento do job e visualização do resultado.
 
 ## Licença
 

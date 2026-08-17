@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from app.api.audio import router as audio_router
 from app.api.jobs import router as jobs_router
 from app.api.meetings import router as meetings_router
+from app.api.transcriptions import router as transcriptions_router
 from app.config import settings
 from app.core.handlers import register_exception_handlers
 from app.core.logging import logger
@@ -33,7 +34,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="AI Meeting Intelligence Platform - Transcribe, analyze, and archive meetings",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -44,6 +45,7 @@ templates = Jinja2Templates(directory="templates")
 app.include_router(meetings_router)
 app.include_router(audio_router)
 app.include_router(jobs_router)
+app.include_router(transcriptions_router)
 
 
 @app.get("/", response_class=HTMLResponse)

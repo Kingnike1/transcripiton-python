@@ -11,7 +11,7 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-003 | SQLite local/testes; PostgreSQL futuro | Accepted |
 | TD-004 | Jinja2 + HTMX antes de SPA | Accepted |
 | TD-005 | Bootstrap 5 | Accepted |
-| TD-006 | Whisper como direção inicial de STT | Accepted, sujeito a revisão |
+| TD-006 | Whisper como direção inicial de STT | Accepted |
 | TD-007 | pyannote como direção inicial de diarização | Accepted, futuro |
 | TD-008 | Repository Pattern | Accepted |
 | TD-009 | Service Layer | Accepted |
@@ -30,6 +30,7 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-022 | CI/Quality bloqueiam regressões | Accepted |
 | TD-023 | Documentação separa current/roadmap/archive | Accepted |
 | TD-024 | Banco é a fila durável inicial; worker é processo separado | Accepted |
+| TD-025 | `faster-whisper` é o provider STT inicial local, isolado no worker | Accepted |
 
 ## TD-016 — Ownership transacional
 
@@ -104,8 +105,31 @@ Redis, Celery, RQ e Dramatiq só serão considerados com evidência de throughpu
 
 TD-011 (BackgroundTasks/fila em memória) está superseded. A implementação antiga e seus testes foram removidos na Sprint 6B.
 
+## TD-025 — Provider STT inicial local
+
+**Status:** Accepted  
+**Data:** 2026-08-16
+
+### Decisão
+
+- usar `faster-whisper` como primeira implementação concreta de `ITranscriber`;
+- manter o provider fora do processo web e executá-lo pelo worker durável;
+- usar por padrão modelo `base`, `device=cpu`, `compute_type=int8` e VAD ligado;
+- permitir idioma automático ou fixo por configuração;
+- persistir o resultado em `Transcription` + `TranscriptionSegment`;
+- manter a dependência pesada em `requirements-worker.txt`;
+- CI testa o contrato por fakes e não baixa/carrega modelo real.
+
+### Motivo
+
+Essa escolha entrega uma transcrição local real com custo operacional baixo e mantém o domínio desacoplado da biblioteca específica. A interface `ITranscriber` permite trocar modelo/provider posteriormente sem reescrever o pipeline de jobs ou persistência.
+
+### Alternativas adiadas
+
+APIs externas de STT e modelos maiores poderão ser avaliados quando houver requisito de qualidade, latência, hardware ou escala que justifique custo/complexidade adicionais.
+
 ---
 
-**Document Version:** 1.9  
+**Document Version:** 2.0  
 **Last Updated:** 2026-08-16  
 **Status:** Active

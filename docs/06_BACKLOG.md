@@ -26,7 +26,7 @@ Entregas principais:
 - [x] documentação `current/roadmap/archive`
 - [!] branch protection da `main` continua controle administrativo externo pendente
 
-## Sprint 6B — Jobs persistentes — EM FECHAMENTO
+### Sprint 6B — Jobs persistentes
 
 - [x] `ProcessingJob` + migration `0004_processing_jobs`
 - [x] repository/service de jobs
@@ -43,33 +43,36 @@ Entregas principais:
 - [x] `ProcessingService` migrado e coberto por testes
 - [x] ADR-025
 - [x] migration integrity inclui `processing_jobs`
-- [x] validação intermediária: 117 testes, 86,95% e Quality verde
-- [ ] CI + Quality no head documental final
-- [ ] PR → `develop`
-- [ ] CI + Quality do PR
+
+## Sprint 7 — Transcrição real — FECHAMENTO
+
+- [x] modelar `TranscriptionSegment`
+- [x] definir estado `TRANSCRIBED` e fluxo `AUDIO_UPLOADED → TRANSCRIBING → TRANSCRIBED`
+- [x] escolher um provider inicial: `faster-whisper`
+- [x] configurar modelo `base`, CPU e `int8` como defaults locais
+- [x] manter dependência pesada isolada em `requirements-worker.txt`
+- [x] registrar handler `TRANSCRIBE` no worker
+- [x] persistir texto, idioma, segmentos, timestamps e confiança
+- [x] tratar retry/falha final sem marcar reunião como FAILED em tentativa recuperável
+- [x] manter heartbeat ativo durante transcrição longa
+- [x] API para consultar transcrição
+- [x] testes de contrato com provider fake
+- [x] teste do adapter sem carregar modelo real
+- [x] idempotência do resultado persistido
+- [x] proteção contra path traversal no storage
+- [ ] CI + Quality do PR para `develop`
 - [ ] merge + pós-merge verde
+- [ ] smoke test operacional com áudio real/modelo baixado localmente
 
-## Sprint 7 — Transcrição real
-
-- [ ] modelar `TranscriptionSegment`
-- [ ] definir estado `TRANSCRIBED`/fluxo de status
-- [ ] escolher **um** provider inicial para uso pessoal/local
-- [ ] manter dependência pesada isolada do processo web quando possível
-- [ ] registrar handler `TRANSCRIBE` no worker
-- [ ] persistir texto, idioma, segmentos, timestamps e confiança
-- [ ] tratar retry/falha final sem marcar reunião como FAILED em tentativa recuperável
-- [ ] API para consultar transcrição
-- [ ] testes de contrato com provider fake
-- [ ] validação manual com áudio real fora do CI
-
-## Sprint 8 — Interface utilizável
+## Sprint 8 — Interface utilizável — PRÓXIMA
 
 - [ ] listar/criar reuniões
 - [ ] detalhe da reunião
 - [ ] upload de áudio
 - [ ] iniciar transcrição
 - [ ] acompanhar job/progresso
-- [ ] visualizar transcrição
+- [ ] visualizar transcrição e segmentos
+- [ ] estados claros de erro/retry/conclusão
 - [ ] fluxo ponta a ponta por Jinja2 + Bootstrap + HTMX/JS mínimo
 
 ## Sprint 9 — Empacotamento para uso interno
@@ -83,15 +86,16 @@ Entregas principais:
 
 ## Posterior ao primeiro uso interno
 
+- [ ] diarização de speakers
+- [ ] identificação de participantes
+- [ ] análise por LLM/resumos/action items
 - [ ] autenticação/autorização antes de exposição pública/multiusuário
 - [ ] PostgreSQL quando concorrência/produção justificar
 - [ ] storage remoto, backups e observabilidade
-- [ ] diarização
-- [ ] análise por LLM/action items
 - [ ] busca
 - [ ] exportação
 - [ ] gravação por microfone
 
-**Document Version:** 3.0  
+**Document Version:** 4.0  
 **Last Updated:** 2026-08-16  
 **Status:** Active

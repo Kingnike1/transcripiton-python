@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database.audio_repository import AudioRepository
 from app.database.meeting_repository import MeetingRepository
 from app.database.processing_job_repository import ProcessingJobRepository
+from app.database.transcription_repository import TranscriptionRepository
 
 T = TypeVar("T")
 
@@ -20,6 +21,7 @@ class SqlAlchemyUnitOfWork:
         self.meetings = MeetingRepository(session)
         self.audios = AudioRepository(session)
         self.processing_jobs = ProcessingJobRepository(session)
+        self.transcriptions = TranscriptionRepository(session)
 
     @contextmanager
     def transaction(self) -> Iterator[None]:

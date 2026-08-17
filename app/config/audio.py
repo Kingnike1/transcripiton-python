@@ -6,7 +6,7 @@ from app.config.base import AMIPBaseSettings
 
 
 class AudioSettings(AMIPBaseSettings):
-    """Audio processing settings."""
+    """Audio processing and local speech-to-text settings."""
 
     FFPROBE_BINARY: str = Field(
         default="ffprobe",
@@ -19,11 +19,29 @@ class AudioSettings(AMIPBaseSettings):
     )
     WHISPER_MODEL: str = Field(
         default="base",
-        description="Whisper model identifier",
+        description="faster-whisper model identifier for the internal MVP",
     )
     WHISPER_LANGUAGE: str = Field(
         default="auto",
-        description="Whisper language or auto-detect",
+        description="Language code or auto-detect",
+    )
+    WHISPER_DEVICE: str = Field(
+        default="cpu",
+        description="faster-whisper execution device (cpu or cuda)",
+    )
+    WHISPER_COMPUTE_TYPE: str = Field(
+        default="int8",
+        description="CTranslate2 compute type; int8 is the safe CPU default",
+    )
+    WHISPER_BEAM_SIZE: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Beam size used during transcription",
+    )
+    WHISPER_VAD_FILTER: bool = Field(
+        default=True,
+        description="Enable faster-whisper VAD filtering",
     )
     PYANNOTE_MODEL: str = Field(
         default="pyannote/speaker-diarization-3.1",
