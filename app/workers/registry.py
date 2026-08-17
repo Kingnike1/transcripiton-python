@@ -3,8 +3,10 @@
 from app.config import settings
 from app.core.enums import JobType
 from app.core.logging import logger
+from app.providers.llm.ollama import OllamaLLMProvider
 from app.providers.speaker_identifier.pyannote import PyannoteSpeakerIdentifier
 from app.providers.transcriber.faster_whisper import FasterWhisperTranscriber
+from app.workers.analysis_handler import AnalysisJobHandler
 from app.workers.diarization_handler import DiarizationJobHandler
 from app.workers.job_worker import JobWorker
 from app.workers.transcription_handler import TranscriptionJobHandler
@@ -46,5 +48,20 @@ def build_worker() -> JobWorker:
         logger.warning(
             "HUGGINGFACE_TOKEN is not configured; DIARIZE jobs will remain pending"
         )
+
+    if settings.ai.LLM_PROVIDER == "ollama":
+        llm = OllamaLLMProvider(
+            base_url=settings.OLLAMA_URL,
+            model=settings.OLLAMA_MODEL,
+            timeout_seconds=settings.ai.OLLAMA_TIMEOUT_SECONDS,
+        )
+        analysis_handler = AnalysisJobHandler(provider=llm)
+        worker.register_handler(
+            JobType.SUMMARIZE,
+            analysis_handler,
+            on_terminal_failure=analysis_handler.on_terminal_failure,
+        )
+    else:
+        logger.warning("LLM_PROVIDER=%s is not supported yet", settings.ai.LLM_PROVIDER)
 
     return worker
