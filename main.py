@@ -18,6 +18,7 @@ from app.core.handlers import register_exception_handlers
 from app.core.logging import logger
 from app.core.request_context import register_request_id_middleware
 from app.database.session import engine
+from app.web import router as web_router
 
 
 @asynccontextmanager
@@ -34,7 +35,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="AI Meeting Intelligence Platform - Transcribe, analyze, and archive meetings",
-    version="0.4.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -46,6 +47,7 @@ app.include_router(meetings_router)
 app.include_router(audio_router)
 app.include_router(jobs_router)
 app.include_router(transcriptions_router)
+app.include_router(web_router)
 
 
 @app.get("/", response_class=HTMLResponse)
