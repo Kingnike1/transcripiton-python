@@ -1,8 +1,8 @@
 # AMIP — AI Meeting Intelligence Platform
 
-O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas e evoluir até inteligência estruturada.
+O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas, identificar participantes e gerar inteligência estruturada localmente.
 
-> **Estado atual:** o fluxo local já cobre reunião → áudio → transcrição → diarização → identificação manual dos participantes. A próxima prioridade é a Stack 12, inteligência por LLM.
+> **Estado atual:** o fluxo local cobre reunião → áudio → transcrição → diarização → identificação de participantes → inteligência por LLM. A próxima prioridade é a Stack 13, autenticação/autorização.
 
 ## O que funciona hoje
 
@@ -10,25 +10,17 @@ O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniõe
 - upload de áudio com streaming/staging e inspeção por `ffprobe`;
 - Alembic e migrations;
 - jobs persistentes + worker separado;
-- claim, lease, heartbeat, retry e recovery;
 - transcrição local com `faster-whisper`;
-- segmentos/timestamps persistidos;
-- diarização local com `pyannote.audio` quando `HUGGINGFACE_TOKEN` está configurado;
-- `speaker_segments` reconciliados com o texto;
-- identificação de participantes: `SPEAKER_XX` → nome humano editável/confirmável;
-- UI para iniciar transcrição/diarização e confirmar participantes;
-- Dockerfile/Compose com migrations, web e worker;
-- volumes persistentes e cache de modelos;
+- diarização local com `pyannote.audio` quando configurado;
+- identificação de participantes `SPEAKER_XX` → nome humano confirmável;
+- inteligência estruturada local via Ollama;
+- baseline `qwen3:4b` configurável por `.env`;
+- resumo, action items, decisões, riscos, perguntas abertas e follow-ups;
+- saída do LLM validada por JSON Schema/Pydantic;
+- evidências com speaker/timestamps/citações para rastreabilidade;
+- provider/modelo persistidos junto à análise;
+- Docker/Compose com migrations, web e worker;
 - CI/Quality com Python 3.11/3.12, Ruff, mypy, migrations, Bandit e `pip-audit`.
-
-## Ainda não implementado
-
-- inteligência por LLM;
-- autenticação/autorização;
-- infraestrutura pública production-ready;
-- busca;
-- exportação;
-- gravação por microfone.
 
 ## Pipeline atual
 
@@ -37,14 +29,28 @@ Meeting
   ↓
 Audio
   ↓ TRANSCRIBE
-Transcription + segments
+Transcription
   ↓ DIARIZE
 Speaker segments
   ↓ confirmação humana
 Participants
+  ↓ SUMMARIZE
+Ollama / Qwen3
   ↓
-Stack 12 — LLM intelligence
+Structured meeting intelligence
 ```
+
+## LLM local
+
+O provider inicial da Stack 12 é Ollama. Por padrão:
+
+```env
+LLM_PROVIDER=ollama
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3:4b
+```
+
+A análise não exige API paga. O modelo é configurável e o domínio não depende diretamente de Ollama, permitindo adapters futuros sem reescrever o contrato da análise.
 
 ## Execução local com Docker
 
@@ -54,9 +60,7 @@ Configure `.env` e execute:
 docker compose up --build
 ```
 
-O Compose executa migrations antes de web/worker. Para diarização real, configure `HUGGINGFACE_TOKEN`; a transcrição continua disponível sem esse token.
-
-Também é possível executar via ambiente Python conforme `docs/current/DEPLOYMENT.md`.
+Para diarização real, configure `HUGGINGFACE_TOKEN`. Para análise real, instale/inicie Ollama na máquina de uso e garanta que o worker consiga alcançar `OLLAMA_URL`, depois baixe o modelo configurado.
 
 ## Testes e quality
 
@@ -78,8 +82,6 @@ develop   → integração
 agent/*   → trabalho por Stack
 ```
 
-Commits seguem Conventional Commits. Consulte [`PROJECT_GOVERNANCE.md`](PROJECT_GOVERNANCE.md).
-
 ## Documentação
 
 - [Mapa documental](docs/README.md)
@@ -94,7 +96,7 @@ Commits seguem Conventional Commits. Consulte [`PROJECT_GOVERNANCE.md`](PROJECT_
 
 ## Próxima etapa
 
-**Stack 12 — Inteligência por LLM:** resumo estruturado, action items, decisões, riscos e follow-ups com rastreabilidade para transcrição e participantes.
+**Stack 13 — Autenticação e autorização:** usuários/login, ownership e autorização por recurso, preparando o AMIP para uso multiusuário.
 
 ## Licença
 

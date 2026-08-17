@@ -50,6 +50,24 @@ def create_diarization_job(
     return ProcessingJobResponse.model_validate(job)
 
 
+@router.post(
+    "/meetings/{meeting_id}/jobs/analysis",
+    response_model=ProcessingJobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_analysis_job(
+    meeting_id: int,
+    service: PersistentJobService = Depends(get_job_service),
+) -> ProcessingJobResponse:
+    meeting = service.uow.meetings.get_by_id(meeting_id)
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    if meeting.status not in {ProcessingStatus.DIARIZED.value, ProcessingStatus.SUMMARIZING.value}:
+        raise HTTPException(status_code=409, detail="Meeting is not ready for LLM analysis")
+    job = service.create_job(meeting_id, JobType.SUMMARIZE, {})
+    return ProcessingJobResponse.model_validate(job)
+
+
 @router.get("/jobs/{job_id}", response_model=ProcessingJobResponse)
 def get_job(job_id: str, service: PersistentJobService = Depends(get_job_service)) -> ProcessingJobResponse:
     job = service.get_job(job_id)

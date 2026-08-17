@@ -32,38 +32,7 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-024 | Banco é a fila durável inicial; worker é processo separado | Accepted |
 | TD-025 | `faster-whisper` é o provider STT inicial local | Accepted |
 | TD-026 | Identidade humana é separada dos speaker segments | Accepted |
-
-## TD-016 — Ownership transacional
-
-Repositories fazem query/add/flush. `SqlAlchemyUnitOfWork` coordena commit/rollback no Service Layer. ADR-017.
-
-## TD-017 — Alembic
-
-Alembic é a fonte oficial do schema e migrations são externas ao processo web. ADR-018.
-
-## TD-018 — Upload streaming
-
-Upload usa chunks, staging, validação, `ffprobe` e promoção atômica. ADR-019.
-
-## TD-019 — Um áudio ativo
-
-Índice único parcial é a defesa final contra concorrência. ADR-020.
-
-## TD-020 — Contrato de erro público
-
-Erros públicos são sanitizados e correlacionados por request ID. ADR-021.
-
-## TD-021 — Lifecycle/configuração
-
-Web não cria schema; ambientes não locais falham fechados quando inseguros; UTC é o relógio comum. ADR-022.
-
-## TD-022 — Quality gates
-
-Python 3.11/3.12, pytest/cobertura, Ruff, mypy, migration integrity, Bandit e `pip-audit` são gates. ADR-023.
-
-## TD-023 — Taxonomia documental
-
-`docs/current/` é comportamento real; `roadmap/` é planejado; `archive/` é histórico. ADR-024.
+| TD-027 | Ollama/Qwen3 é o provider LLM local inicial com saída estruturada | Accepted |
 
 ## TD-024 — Banco como fila durável inicial
 
@@ -75,26 +44,32 @@ Python 3.11/3.12, pytest/cobertura, Ruff, mypy, migration integrity, Bandit e `p
 
 ## TD-026 — Participant identity layer
 
+`Participant` pertence à reunião e mapeia `speaker_label` para `display_name` + `confirmed`, mantendo identidade humana separada de `SpeakerSegment`. ADR-026.
+
+## TD-027 — LLM local estruturado
+
 **Status:** Accepted  
 **Data:** 2026-08-17  
-**ADR:** `docs/adr/ADR-026-participant-identity-layer.md`
+**ADR:** `docs/adr/ADR-027-local-llm-structured-intelligence.md`
 
 ### Decisão
 
-- `SpeakerSegment` continua sendo o dado temporal bruto da diarização;
-- `Participant` pertence à reunião e mapeia `speaker_label` para `display_name` + `confirmed`;
-- `(meeting_id, speaker_label)` é único;
-- novas diarizações criam placeholders automaticamente;
-- a migration `0007_participant_identities` faz backfill das diarizações existentes;
-- confirmação humana exige nome não vazio;
-- não há reconhecimento biométrico global entre reuniões.
+- Ollama é o primeiro adapter LLM;
+- `qwen3:4b` é o baseline local configurável;
+- jobs `SUMMARIZE` executam a análise fora do processo HTTP;
+- a entrada inclui timestamps, speaker labels e participantes confirmados;
+- a saída usa JSON Schema e é validada por Pydantic;
+- resumo, action items, decisões, riscos e follow-ups são persistidos;
+- itens podem carregar `owner` e evidências rastreáveis;
+- provider e modelo usados são persistidos;
+- providers pagos permanecem adapters futuros, não dependências do domínio.
 
 ### Motivo
 
-Separar rótulo técnico de identidade humana evita duplicação em cada segmento, permite correções sem reprocessar áudio e prepara a Stack 12 para atribuir decisões e action items a participantes confirmados.
+Entrega inteligência útil sem cobrança obrigatória por token, mantém dados de reunião locais por padrão e reduz risco de hallucination ao exigir estrutura e evidências. O contrato permanece substituível quando houver necessidade de outro provider/modelo.
 
 ---
 
-**Document Version:** 3.0  
+**Document Version:** 4.0  
 **Last Updated:** 2026-08-17  
 **Status:** Active
