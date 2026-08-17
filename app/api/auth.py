@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database.session import get_db
 from app.schemas.auth import AuthStatusResponse, LoginRequest, RegisterRequest, UserResponse
 from app.services.auth_service import AuthService, SESSION_COOKIE_NAME, SESSION_DAYS
@@ -16,7 +17,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
         value=token,
         max_age=SESSION_DAYS * 24 * 60 * 60,
         httponly=True,
-        secure=False,
+        secure=settings.ENVIRONMENT in {"staging", "production"},
         samesite="lax",
         path="/",
     )
