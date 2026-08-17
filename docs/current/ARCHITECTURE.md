@@ -7,13 +7,11 @@ O AMIP é um **monólito modular em camadas** com dois processos operacionais: w
 ```text
 Client
   ↓ HTTP
-FastAPI
+FastAPI / Jinja2 UI
   ↓
 Application Services
   ↓
-SqlAlchemyUnitOfWork
-  ↓
-Repositories
+SQLAlchemy / Repositories
   ↓
 Database
 
@@ -23,121 +21,76 @@ FastAPI ── cria/consulta ──> ProcessingJob
                               ↓ claim/lease
                          Worker separado
                               ↓
-                     handler por JobType
+              TRANSCRIBE / DIARIZE handlers
                               ↓
-                   providers / storage
+             faster-whisper / pyannote.audio
 ```
-
-Redis, Celery, microservices e Kubernetes continuam fora do desenho atual até existir necessidade comprovada.
 
 ## Estado real
 
 | Área | Estado |
 |---|---|
 | CRUD de reuniões | Implementado |
-| Upload de áudio | Implementado com streaming/staging |
-| Inspeção de mídia | Implementada com `ffprobe` |
-| Storage local | Implementado |
-| Unit of Work | Implementada |
-| Alembic | Implementado |
-| Um áudio ativo por reunião | Garantido pelo banco |
-| Erros/request ID | Implementados |
-| Lifecycle/configuração | Implementados |
-| CI + Quality | Implementados |
-| Jobs persistentes | Implementados — Sprint 6B |
-| Worker separado | Implementado — Sprint 6B |
-| Transcrição real | **Não implementada** |
-| Diarização | **Não implementada** |
-| Análise por LLM | **Não implementada** |
-| UI de uso completa | **Não implementada** |
-| Autenticação/autorização | **Não implementada** |
+| Upload/inspeção de áudio | Implementado |
+| Jobs persistentes/worker | Implementado |
+| Transcrição real | Implementada com `faster-whisper` |
+| Interface de reunião | Implementada |
+| Diarização | Implementada com `pyannote.audio` quando configurado |
+| Identificação de participantes | Implementada — Stack 11 |
+| Empacotamento Docker local | Implementado |
+| Análise por LLM | Não implementada |
+| Autenticação/autorização | Não implementada |
 
-## Transações
-
-Application Services possuem as fronteiras transacionais por `SqlAlchemyUnitOfWork`. Repositories fazem query/add/update/flush e nunca `commit()`/`rollback()`.
-
-## Jobs persistentes
-
-`ProcessingJob` é a unidade durável de trabalho assíncrono.
-
-Estados:
+## Pipeline atual
 
 ```text
-PENDING
-  ↓ claim
-RUNNING
-  ├── sucesso → COMPLETED
-  ├── falha recuperável → RETRYING → RUNNING
-  └── tentativas esgotadas → FAILED
-
-PENDING/RETRYING → CANCELLED
+Meeting
+  ↓ upload
+Audio
+  ↓ TRANSCRIBE
+Transcription + TranscriptionSegment
+  ↓ DIARIZE
+SpeakerSegment (SPEAKER_XX)
+  ↓ confirmação humana
+Participant (display_name + confirmed)
+  ↓ próxima etapa
+LLM intelligence (Stack 12)
 ```
 
-### Concorrência e recuperação
+## Identidade de participantes
 
-- um índice único parcial impede mais de um job ativo do mesmo tipo para a mesma reunião;
-- criação é idempotente enquanto existe job ativo;
-- claim usa atualização condicional, não lock Python em memória;
-- `locked_by`, `locked_at` e `heartbeat_at` representam ownership/lease;
-- job `RUNNING` com heartbeat stale pode ser recuperado por outro worker;
-- `attempt`, `max_attempts` e `available_at` controlam retry;
-- worker só reclama `JobType` para o qual possui handler registrado.
+A Stack 11 separa o dado bruto da diarização da identidade humana. `SpeakerSegment` continua registrando `speaker_label`; `Participant` pertence à reunião e guarda o nome editável/confirmado para aquele rótulo.
 
-### Limite atual
+Essa separação permite corrigir nomes sem reprocessar áudio e prepara a Stack 12 para atribuir decisões e action items a participantes confirmados. Não existe reconhecimento biométrico global entre reuniões.
 
-SQLite + polling no banco é intencional para uso pessoal/local e baixa concorrência. Uma fila especializada só será considerada quando houver throughput ou contenção que justifiquem o custo operacional.
+## Jobs e concorrência
 
-## Worker
-
-O processo separado é iniciado por:
-
-```bash
-python worker.py
-```
-
-`app/workers/registry.py` é o composition root dos handlers. Na conclusão da Sprint 6B ele não registra transcritor real; a Sprint 7 conectará o primeiro handler `TRANSCRIBE`.
+`ProcessingJob` mantém estado, progresso, tentativas e lease. O worker executa STT e diarização fora do processo web. SQLite + polling continua intencional para uso pessoal/local e baixa concorrência.
 
 ## Schema e migrations
 
-```text
-0001_initial_schema
-  ↓
-0002_audio_media_metadata
-  ↓
-0003_one_active_audio_per_meeting
-  ↓
-0004_processing_jobs
-```
-
-Migrations continuam externas ao processo web: `alembic upgrade head` antes de iniciar web/worker.
+A cadeia atual termina em `0007_participant_identities`. Migrations são executadas externamente com `alembic upgrade head` antes de web/worker.
 
 ## Quality gates
 
 - Python 3.11: suíte completa + cobertura >=80%;
-- Python 3.12: compatibilidade;
+- Python 3.12;
 - Ruff;
 - mypy;
 - migration integrity;
 - Bandit;
-- `pip-audit`.
+- `pip-audit`;
+- validação Docker/Compose.
 
 ## Próxima fronteira arquitetural
 
-**Sprint 7 — primeira transcrição real**: escolher um único provider, persistir segmentos e registrar o handler `TRANSCRIBE` no worker.
+**Stack 12 — Inteligência por LLM**: produzir resumo estruturado, decisões, action items, riscos e follow-ups com rastreabilidade para a transcrição e participantes.
 
 ## ADRs relacionados
 
-- ADR-017 — ownership transacional;
-- ADR-018 — Alembic baseline;
-- ADR-019 — streaming/staging de áudio;
-- ADR-020 — um áudio ativo por reunião;
-- ADR-021 — contrato público de erros;
-- ADR-022 — lifecycle/configuração;
-- ADR-023 — quality gates/dependências;
-- ADR-024 — taxonomia documental;
-- ADR-025 — jobs duráveis e worker separado.
+ADRs 017–025 cobrem fundação, migrations, upload, segurança, quality, documentação e jobs. A Stack 11 adiciona **ADR-026 — participant identity layer**.
 
 ---
 
 **Status:** Active  
-**Last Updated:** 2026-08-16
+**Last Updated:** 2026-08-17
