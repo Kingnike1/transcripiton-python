@@ -1,0 +1,97 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-amip}
+      POSTGRES_USER: ${POSTGRES_USER:-amip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-amip} -d ${POSTGRES_DB:-amip}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: web
+    command: ["alembic", "upgrade", "head"]
+    env_file: [.env.production]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-amip}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-amip}
+      STORAGE_PATH: /data/storage
+      LOG_FILE: /data/logs/app.log
+    volumes:
+      - amip_storage:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: web
+    env_file: [.env.production]
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-amip}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-amip}
+      STORAGE_PATH: /data/storage
+      LOG_FILE: /data/logs/app.log
+    ports:
+      - "${AMIP_PORT:-8000}:8000"
+    volumes:
+      - amip_storage:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      target: worker
+    env_file: [.env.production]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-amip}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-amip}
+      STORAGE_PATH: /data/storage
+      LOG_FILE: /data/logs/app.log
+      HF_HOME: /models/huggingface
+    volumes:
+      - amip_storage:/data
+      - model_cache:/models
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  backup:
+    image: postgres:16-alpine
+    env_file: [.env.production]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./ops/backup:/ops:ro
+      - backup_data:/backups
+      - amip_storage:/data:ro
+    entrypoint: ["/bin/sh", "/ops/backup-loop.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  amip_storage:
+  model_cache:
+  backup_data:
