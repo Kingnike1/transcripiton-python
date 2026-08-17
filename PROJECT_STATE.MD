@@ -4,64 +4,69 @@
 
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-16  
-**Sprint atual:** Sprint 9 — Empacotamento para uso interno  
+**Stack atual:** Stack 9 — Empacotamento para uso interno  
+**Branch:** `agent/sprint-9-packaging`  
 **Branch de integração:** `develop`  
-**Último merge:** PR #12 — Sprint 8  
-**Commit de integração:** `01b1065b00d6f18a725e2b0bbdf2b3b7c41f96be`  
-**Status:** Sprint 8 concluída e integrada; próxima prioridade é empacotamento operacional
+**Último merge:** PR #13 — Stack 10 Diarização  
+**Commit de integração:** `8d0734e30526ff7fa0b282053e96ad25ea65ce1b`  
+**Status:** Stack 10 concluída fora de ordem; Stack 9 implementada e em fechamento por PR/CI
 
-## Baseline
+## Capacidade atual
 
-A Sprint 7 fornece transcrição real local com `faster-whisper`, persistência de texto/segmentos e processamento durável.
+- CRUD e interface de reuniões;
+- upload/armazenamento de áudio;
+- jobs duráveis e worker separado;
+- transcrição local com faster-whisper;
+- transcrição/segmentos persistidos;
+- diarização local com pyannote quando `HUGGINGFACE_TOKEN` está configurado;
+- speaker segments persistidos e reconciliados com o texto;
+- APIs para transcrição e diarização;
+- UI para o fluxo de transcrição.
 
-A Sprint 8 foi integrada em `develop` pelo PR #12 e entrega o primeiro fluxo humano ponta a ponta do AMIP.
+## Stack 10 — Diarização — CONCLUÍDA
 
-## Sprint 8 — concluída
+- [x] provider `pyannote.audio` atrás de `ISpeakerIdentifier`;
+- [x] modelo `speaker-diarization-community-1`;
+- [x] estado `DIARIZED`;
+- [x] job `DIARIZE` no worker durável;
+- [x] persistência e consulta de `speaker_segments`;
+- [x] alinhamento com segmentos da transcrição;
+- [x] CI + Quality verdes;
+- [x] PR #13 integrado em `develop`.
 
-- [x] página de listagem de reuniões em `/meetings`;
-- [x] criação de reunião pela interface;
-- [x] página de detalhe em `/meetings/{id}`;
-- [x] upload de áudio pela interface;
-- [x] início do job `TRANSCRIBE` pela interface;
-- [x] acompanhamento de status e progresso do job por polling;
-- [x] exibição de falha do job;
-- [x] consulta automática da transcrição concluída;
-- [x] visualização do texto completo;
-- [x] visualização dos segmentos com timestamps;
-- [x] interface responsiva baseada em Jinja2 + Bootstrap + JavaScript mínimo;
-- [x] reaproveitamento das APIs e services existentes, sem duplicar regras de negócio;
-- [x] testes das novas rotas web;
-- [x] versão da aplicação elevada para 0.5.0;
-- [x] CI verde no PR #12;
-- [x] Quality verde no PR #12;
-- [x] merge na `develop` concluído.
+## Stack 9 — Empacotamento — IMPLEMENTADA NA BRANCH
 
-## Fluxo humano entregue
+- [x] Dockerfile multi-target `web` / `worker`;
+- [x] imagem com `ffmpeg`/`ffprobe`;
+- [x] Compose com migration one-shot, web e worker;
+- [x] migration bloqueia inicialização até concluir com sucesso;
+- [x] volume persistente para SQLite/storage/logs;
+- [x] volume separado para cache de modelos;
+- [x] healthcheck da aplicação;
+- [x] entrypoint `python -m app.workers.run`;
+- [x] worker mantém transcrição ativa mesmo sem token pyannote;
+- [x] smoke test operacional em `scripts/smoke.py`;
+- [x] documentação operacional e backup;
+- [x] workflow Docker valida Compose e constrói web target;
+- [x] testes estáticos do contrato de empacotamento.
 
-`listar/criar reunião → abrir detalhe → enviar áudio → iniciar transcrição → acompanhar job → visualizar transcrição e segmentos`
+## Gate final da Stack 9
 
-A aplicação web continua separada do worker: a interface apenas cria e consulta jobs persistentes; o processamento pesado permanece fora do processo HTTP.
+1. abrir PR para `develop`;
+2. CI + Quality + Docker verdes;
+3. corrigir regressões se houver;
+4. merge na `develop`;
+5. registrar fechamento oficial.
 
-## Próxima prioridade — Sprint 9
+## Próximas stacks
 
-**Empacotamento para uso interno:**
+- Stack 11 — identificação de participantes;
+- Stack 12 — inteligência por LLM;
+- Stack 13 — autenticação/autorização;
+- Stack 14 — infraestrutura de produção;
+- Stack 15 — busca;
+- Stack 16 — exportação;
+- Stack 17 — gravação por microfone.
 
-1. Dockerfile;
-2. Compose com migrations + web + worker;
-3. volumes persistentes para SQLite, storage e cache do modelo;
-4. ffmpeg/ffprobe disponíveis no ambiente;
-5. comandos simples para iniciar/parar/atualizar;
-6. smoke test operacional do fluxo completo;
-7. documentação de backup e recuperação básica.
-
-## Ainda posterior
-
-- diarização de speakers;
-- identificação de participantes;
-- análise por LLM, resumos e action items;
-- autenticação/autorização;
-- PostgreSQL quando necessário;
-- deploy público production-ready.
-
-**Document Version:** 5.1  
+**Document Version:** 6.0  
 **Status:** Active
