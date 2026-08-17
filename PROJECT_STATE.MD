@@ -6,8 +6,9 @@
 **Última atualização:** 2026-08-17  
 **Stack atual:** Stack 14 — Infraestrutura de produção  
 **Branch de integração:** `develop`  
-**Stack 13:** autenticação/autorização implementada em `agent/stack-13-auth`  
-**Status esperado após gate/merge:** Stacks 7–13 concluídas; Stack 14 é a próxima prioridade
+**Último merge:** PR #17 — Stack 13 Autenticação e autorização  
+**Commit de integração:** `dec0ea0e590c20a1de6ce40147d40260046aea73`  
+**Status:** Stacks 7–13 concluídas e integradas; Stack 14 é a próxima prioridade
 
 ## Capacidade atual
 
@@ -28,7 +29,7 @@
 - primeira conta assume reuniões legadas sem dono;
 - Docker/Compose com migrations, web e worker.
 
-## Stack 13 — Autenticação e autorização — IMPLEMENTADA
+## Stack 13 — Autenticação e autorização — CONCLUÍDA
 
 - [x] entidade `User`;
 - [x] entidade `AuthSession`;
@@ -47,7 +48,11 @@
 - [x] modo local sem contas preservado;
 - [x] migration `0009_auth_ownership`;
 - [x] testes de sessão, hashing, legacy claim e isolamento multiusuário;
-- [x] documentação e ADR-028.
+- [x] documentação, SECURITY.md e ADR-028;
+- [x] drift de migration corrigido e validado;
+- [x] testes web migrados para schema real;
+- [x] CI + Quality + Docker verdes no PR #17;
+- [x] PR #17 integrado em `develop`.
 
 ## Próximas stacks
 
@@ -66,5 +71,5 @@
 
 **Stack 14 — Infraestrutura de produção** deve tratar banco/storage/deploy/observabilidade/backups e hardening operacional sem transformar prematuramente o monólito em microserviços.
 
-**Document Version:** 9.0  
+**Document Version:** 9.1  
 **Status:** Active
