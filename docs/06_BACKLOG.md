@@ -2,102 +2,111 @@
 
 ## Concluído
 
-### Fundação e Sprint 5
+### Fundação / Sprint 5 / Sprint 6A / Sprint 6B
 
-- [x] FastAPI/SQLAlchemy/Pydantic/Jinja2
-- [x] Repository Pattern e Service Layer
-- [x] configuração/exceções/logging
+- [x] FastAPI, SQLAlchemy, Pydantic e Jinja2
+- [x] Repository Pattern, Service Layer e Unit of Work
 - [x] CRUD de reuniões
-- [x] upload/armazenamento inicial de áudio
-
-### Sprint 6A — Estabilização
-
-P0.1–P0.8 estão integradas em `develop` pelos PRs #2–#9 com CI/Quality pós-merge verdes.
-
-Entregas principais:
-
-- [x] Unit of Work/ownership transacional
+- [x] upload/armazenamento seguro de áudio
 - [x] Alembic e migrations
-- [x] upload streaming/staging + `ffprobe`
-- [x] integridade concorrente de áudio
-- [x] erros seguros/request ID
-- [x] lifecycle/configuração/UTC
-- [x] Python 3.11/3.12 + Ruff/mypy/Bandit/pip-audit
-- [x] documentação `current/roadmap/archive`
-- [!] branch protection da `main` continua controle administrativo externo pendente
+- [x] jobs persistentes + worker separado
+- [x] claim, lease, heartbeat, retry e recovery
+- [x] CI/Quality, Python 3.11/3.12, Ruff, mypy, Bandit e pip-audit
 
-### Sprint 6B — Jobs persistentes
+### Stack 7 — Transcrição real
 
-- [x] `ProcessingJob` + migration `0004_processing_jobs`
-- [x] repository/service de jobs
-- [x] estados persistentes, progresso, tentativas e erros
-- [x] criação idempotente por reunião/tipo
-- [x] índice único parcial para job ativo
-- [x] endpoints criar/consultar/listar/cancelar
-- [x] worker separado do processo HTTP
-- [x] claim/lease/lock/heartbeat
-- [x] retry com `available_at` e `max_attempts`
-- [x] recuperação de `RUNNING` stale
-- [x] concorrência/ownership testados
-- [x] fila e singleton em memória removidos
-- [x] `ProcessingService` migrado e coberto por testes
-- [x] ADR-025
-- [x] migration integrity inclui `processing_jobs`
+- [x] faster-whisper
+- [x] `TRANSCRIBED`
+- [x] texto/idioma/segmentos/timestamps/confiança persistidos
+- [x] handler `TRANSCRIBE`
+- [x] API de transcrição
+- [x] testes e gates verdes
 
-### Sprint 7 — Transcrição real — CONCLUÍDA
+### Stack 8 — Interface utilizável
 
-- [x] modelar `TranscriptionSegment`
-- [x] definir estado `TRANSCRIBED` e fluxo `AUDIO_UPLOADED → TRANSCRIBING → TRANSCRIBED`
-- [x] preservar compatibilidade `TRANSCRIBING → DIARIZING` para o pipeline futuro
-- [x] escolher um provider inicial: `faster-whisper`
-- [x] configurar modelo `base`, CPU e `int8` como defaults locais
-- [x] manter dependência pesada isolada em `requirements-worker.txt`
-- [x] registrar handler `TRANSCRIBE` no worker
-- [x] persistir texto, idioma, segmentos, timestamps e confiança
-- [x] tratar retry/falha final sem marcar reunião como FAILED em tentativa recuperável
-- [x] manter heartbeat ativo durante transcrição longa
-- [x] API para consultar transcrição
-- [x] testes de contrato com provider fake
-- [x] teste do adapter sem carregar modelo real
-- [x] idempotência do resultado persistido
-- [x] proteção contra path traversal no storage
-- [x] CI do PR #11 verde
-- [x] Quality do PR #11 verde
-- [x] merge para `develop`
-- [ ] smoke test operacional com áudio real/modelo baixado localmente
+- [x] listar/criar reuniões
+- [x] detalhe da reunião
+- [x] upload de áudio
+- [x] iniciar transcrição
+- [x] acompanhar job/progresso
+- [x] visualizar transcrição/segmentos
+- [x] fluxo Jinja2 + Bootstrap + JavaScript mínimo
+- [x] PR #12 integrado em `develop`
 
-## Sprint 8 — Interface utilizável — ATUAL
+### Stack 10 — Diarização — executada antes da 9 por decisão de sequência
 
-- [ ] listar/criar reuniões
-- [ ] detalhe da reunião
-- [ ] upload de áudio
-- [ ] iniciar transcrição
-- [ ] acompanhar job/progresso
-- [ ] visualizar transcrição e segmentos
-- [ ] estados claros de erro/retry/conclusão
-- [ ] fluxo ponta a ponta por Jinja2 + Bootstrap + HTMX/JS mínimo
+- [x] provider `pyannote.audio` atrás de `ISpeakerIdentifier`
+- [x] `speaker-diarization-community-1`
+- [x] exclusive speaker diarization
+- [x] estado `DIARIZED`
+- [x] persistência em `speaker_segments`
+- [x] alinhamento speaker ↔ texto por timestamps
+- [x] job durável `DIARIZE`
+- [x] API de consulta da diarização
+- [x] CI + Quality verdes
+- [x] PR #13 integrado em `develop`
 
-## Sprint 9 — Empacotamento para uso interno
+## Stack 9 — Empacotamento para uso interno — EM FECHAMENTO
 
-- [ ] Dockerfile
-- [ ] Compose com migration + web + worker
-- [ ] volume persistente para SQLite/storage/cache de modelo
-- [ ] `ffmpeg/ffprobe` disponível no ambiente
-- [ ] documentação simples: configurar, iniciar, parar, atualizar e backup
-- [ ] smoke test do fluxo operacional
+- [x] Dockerfile multi-target web/worker
+- [x] Compose com migration + web + worker
+- [x] volumes persistentes para SQLite/storage/logs/cache de modelo
+- [x] ffmpeg/ffprobe no container
+- [x] entrypoint real do worker
+- [x] healthcheck
+- [x] smoke test operacional
+- [x] documentação de configurar/iniciar/parar/atualizar/backup
+- [x] gate Docker para web target + `docker compose config`
+- [ ] CI + Quality + Docker verdes no PR
+- [ ] merge para `develop`
 
-## Posterior ao primeiro uso interno
+## Stacks ainda faltantes após a Stack 9
 
-- [ ] diarização de speakers
-- [ ] identificação de participantes
-- [ ] análise por LLM/resumos/action items
-- [ ] autenticação/autorização antes de exposição pública/multiusuário
-- [ ] PostgreSQL quando concorrência/produção justificar
-- [ ] storage remoto, backups e observabilidade
-- [ ] busca
-- [ ] exportação
-- [ ] gravação por microfone
+### Stack 11 — Identificação de participantes
+- [ ] mapear `SPEAKER_XX` para pessoas/nomes
+- [ ] edição/confirmação manual
+- [ ] persistir identidade do participante
 
-**Document Version:** 4.1  
+### Stack 12 — Inteligência por LLM
+- [ ] resumo estruturado
+- [ ] action items
+- [ ] decisões
+- [ ] riscos
+- [ ] perguntas abertas/follow-ups
+- [ ] validação estruturada e rastreabilidade
+
+### Stack 13 — Autenticação e autorização
+- [ ] usuários/login
+- [ ] autorização por recurso
+- [ ] preparação multiusuário
+
+### Stack 14 — Infra de produção
+- [ ] PostgreSQL quando necessário
+- [ ] storage remoto
+- [ ] backups operacionais
+- [ ] observabilidade/métricas/logs de produção
+- [ ] hardening e deploy production-ready
+
+### Stack 15 — Busca
+- [ ] busca textual em reuniões/transcrições
+- [ ] PostgreSQL FTS antes de vector DB
+
+### Stack 16 — Exportação
+- [ ] Markdown
+- [ ] TXT
+- [ ] DOCX
+- [ ] PDF
+
+### Stack 17 — Gravação por microfone
+- [ ] captura no navegador
+- [ ] upload seguro para reunião
+- [ ] integração com pipeline existente
+
+## Pendências operacionais independentes
+
+- [ ] smoke test com áudio real/modelos baixados na máquina de uso
+- [!] branch protection administrativa da `main`, quando permissões permitirem
+
+**Document Version:** 6.0  
 **Last Updated:** 2026-08-16  
 **Status:** Active
