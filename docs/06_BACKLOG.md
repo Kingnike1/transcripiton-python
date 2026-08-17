@@ -33,7 +33,7 @@
 - [x] fluxo Jinja2 + Bootstrap + JavaScript mínimo
 - [x] PR #12 integrado em `develop`
 
-### Stack 10 — Diarização — executada antes da 9 por decisão de sequência
+### Stack 10 — Diarização — executada antes da 9
 
 - [x] provider `pyannote.audio` atrás de `ISpeakerIdentifier`
 - [x] `speaker-diarization-community-1`
@@ -46,7 +46,7 @@
 - [x] CI + Quality verdes
 - [x] PR #13 integrado em `develop`
 
-## Stack 9 — Empacotamento para uso interno — EM FECHAMENTO
+### Stack 9 — Empacotamento para uso interno
 
 - [x] Dockerfile multi-target web/worker
 - [x] Compose com migration + web + worker
@@ -57,10 +57,10 @@
 - [x] smoke test operacional
 - [x] documentação de configurar/iniciar/parar/atualizar/backup
 - [x] gate Docker para web target + `docker compose config`
-- [ ] CI + Quality + Docker verdes no PR
-- [ ] merge para `develop`
+- [x] CI + Quality + Docker verdes no PR #14
+- [x] PR #14 integrado em `develop`
 
-## Stacks ainda faltantes após a Stack 9
+## Stacks ainda faltantes
 
 ### Stack 11 — Identificação de participantes
 - [ ] mapear `SPEAKER_XX` para pessoas/nomes
@@ -107,6 +107,6 @@
 - [ ] smoke test com áudio real/modelos baixados na máquina de uso
 - [!] branch protection administrativa da `main`, quando permissões permitirem
 
-**Document Version:** 6.0  
+**Document Version:** 6.1  
 **Last Updated:** 2026-08-16  
 **Status:** Active
