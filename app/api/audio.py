@@ -3,29 +3,22 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from starlette.concurrency import run_in_threadpool
 
-from app.api.dependencies import get_audio_service
-from app.exceptions.audio import (
-    AudioAlreadyExistsError,
-    AudioInspectorUnavailableError,
-    MeetingNotFoundError,
-)
+from app.api.dependencies import get_audio_service, require_meeting_access
+from app.exceptions.audio import AudioAlreadyExistsError, AudioInspectorUnavailableError, MeetingNotFoundError
+from app.models.meeting import Meeting
 from app.schemas.audio import AudioResponse, AudioUploadResponse
 from app.services.audio_service import AudioService
 
 router = APIRouter(prefix="/api/meetings", tags=["audio"])
 
 
-@router.post(
-    "/{meeting_id}/audio",
-    response_model=AudioUploadResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/{meeting_id}/audio", response_model=AudioUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_audio(
     meeting_id: int,
     file: UploadFile = File(...),
+    _meeting: Meeting = Depends(require_meeting_access),
     service: AudioService = Depends(get_audio_service),
 ) -> AudioUploadResponse:
-    """Stream an uploaded file through the synchronous storage pipeline."""
     try:
         audio = await run_in_threadpool(
             service.upload_stream,
@@ -55,6 +48,7 @@ async def upload_audio(
 @router.get("/{meeting_id}/audio", response_model=AudioResponse)
 def get_audio_metadata(
     meeting_id: int,
+    _meeting: Meeting = Depends(require_meeting_access),
     service: AudioService = Depends(get_audio_service),
 ) -> AudioResponse:
     try:

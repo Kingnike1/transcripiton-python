@@ -3,7 +3,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import require_meeting_access
 from app.database.session import get_db
+from app.models.meeting import Meeting
 from app.schemas.diarization import DiarizationResponse, SpeakerSegmentResponse
 from app.schemas.participant import ParticipantResponse
 from app.services.diarization_service import DiarizationService
@@ -13,7 +15,11 @@ router = APIRouter(prefix="/api/meetings", tags=["diarization"])
 
 
 @router.get("/{meeting_id}/diarization", response_model=DiarizationResponse)
-def get_diarization(meeting_id: int, db: Session = Depends(get_db)) -> DiarizationResponse:
+def get_diarization(
+    meeting_id: int,
+    _meeting: Meeting = Depends(require_meeting_access),
+    db: Session = Depends(get_db),
+) -> DiarizationResponse:
     rows = DiarizationService(db).get_by_meeting(meeting_id)
     if not rows:
         raise HTTPException(status_code=404, detail="Diarization not found")

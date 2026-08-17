@@ -20,6 +20,8 @@ BUSINESS_TABLES = {
     "speaker_segments",
     "meeting_analysis",
     "processing_jobs",
+    "users",
+    "auth_sessions",
 }
 
 

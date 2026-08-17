@@ -2,13 +2,13 @@
 
 ## Visão
 
-O AMIP é um **monólito modular em camadas** com dois processos operacionais: web e worker. Ambos compartilham banco e storage; processamento pesado não roda dentro do request HTTP.
+O AMIP é um **monólito modular em camadas** com processos web e worker. Ambos compartilham banco/storage; processamento pesado não roda dentro do request HTTP.
 
 ```text
-Client
-  ↓ HTTP
+Browser
+  ↓ session cookie
 FastAPI / Jinja2 UI
-  ↓
+  ↓ auth + ownership
 Application Services
   ↓
 SQLAlchemy / Repositories
@@ -18,12 +18,10 @@ Database
 FastAPI ── cria/consulta ──> ProcessingJob
                               ↓
                          database queue
-                              ↓ claim/lease
+                              ↓
                          Worker separado
                               ↓
-              TRANSCRIBE / DIARIZE handlers
-                              ↓
-             faster-whisper / pyannote.audio
+             STT / diarization / LLM providers
 ```
 
 ## Estado real
@@ -34,47 +32,53 @@ FastAPI ── cria/consulta ──> ProcessingJob
 | Upload/inspeção de áudio | Implementado |
 | Jobs persistentes/worker | Implementado |
 | Transcrição real | Implementada com `faster-whisper` |
-| Interface de reunião | Implementada |
 | Diarização | Implementada com `pyannote.audio` quando configurado |
-| Identificação de participantes | Implementada — Stack 11 |
+| Identificação de participantes | Implementada |
+| Inteligência por LLM | Implementada via Ollama/Qwen3 |
+| Autenticação | Implementada — Stack 13 |
+| Ownership/autorização | Implementados — Stack 13 |
 | Empacotamento Docker local | Implementado |
-| Análise por LLM | Não implementada |
-| Autenticação/autorização | Não implementada |
+| Infra pública production-ready | Ainda não implementada |
 
-## Pipeline atual
+## Pipeline
 
 ```text
+User
+  ↓ owns
 Meeting
-  ↓ upload
+  ↓
 Audio
   ↓ TRANSCRIBE
-Transcription + TranscriptionSegment
+Transcription
   ↓ DIARIZE
-SpeakerSegment (SPEAKER_XX)
+Speaker segments
   ↓ confirmação humana
-Participant (display_name + confirmed)
-  ↓ próxima etapa
-LLM intelligence (Stack 12)
+Participants
+  ↓ SUMMARIZE
+Structured intelligence
 ```
 
-## Identidade de participantes
+## Boundary de segurança
 
-A Stack 11 separa o dado bruto da diarização da identidade humana. `SpeakerSegment` continua registrando `speaker_label`; `Participant` pertence à reunião e guarda o nome editável/confirmado para aquele rótulo.
+`User` é a identidade de conta. `AuthSession` implementa sessão revogável por token opaco. `Meeting.owner_id` é a raiz da autorização: áudio, transcrição, diarização, participantes, análise e jobs são liberados somente se a reunião-pai pertence ao usuário atual.
 
-Essa separação permite corrigir nomes sem reprocessar áudio e prepara a Stack 12 para atribuir decisões e action items a participantes confirmados. Não existe reconhecimento biométrico global entre reuniões.
+Workers não recebem cookie nem identidade HTTP; eles processam jobs internos já persistidos. A autorização acontece na fronteira web/API antes da criação/consulta dos recursos.
 
-## Jobs e concorrência
+O modo local sem contas continua disponível para compatibilidade. Quando a primeira conta é criada, reuniões legadas sem owner são associadas a ela. Depois disso, a aplicação passa a exigir sessão para o workspace e APIs protegidas.
 
-`ProcessingJob` mantém estado, progresso, tentativas e lease. O worker executa STT e diarização fora do processo web. SQLite + polling continua intencional para uso pessoal/local e baixa concorrência.
+## Segurança de credenciais
 
-## Schema e migrations
-
-A cadeia atual termina em `0007_participant_identities`. Migrations são executadas externamente com `alembic upgrade head` antes de web/worker.
+- senha: scrypt + salt aleatório;
+- comparação: tempo constante;
+- sessão: token aleatório opaco;
+- banco: somente SHA-256 do token;
+- cookie: HttpOnly, SameSite=Lax e Secure em staging/produção;
+- acesso cruzado: 404 para reduzir enumeração de recursos.
 
 ## Quality gates
 
-- Python 3.11: suíte completa + cobertura >=80%;
-- Python 3.12;
+- Python 3.11 e 3.12;
+- pytest + cobertura >=80%;
 - Ruff;
 - mypy;
 - migration integrity;
@@ -84,11 +88,11 @@ A cadeia atual termina em `0007_participant_identities`. Migrations são executa
 
 ## Próxima fronteira arquitetural
 
-**Stack 12 — Inteligência por LLM**: produzir resumo estruturado, decisões, action items, riscos e follow-ups com rastreabilidade para a transcrição e participantes.
+**Stack 14 — Infraestrutura de produção**: preparar banco, storage, backups, observabilidade, hardening e deployment sem introduzir microserviços sem necessidade comprovada.
 
 ## ADRs relacionados
 
-ADRs 017–025 cobrem fundação, migrations, upload, segurança, quality, documentação e jobs. A Stack 11 adiciona **ADR-026 — participant identity layer**.
+ADRs 017–027 cobrem fundação, jobs, STT, participantes e LLM. A Stack 13 adiciona **ADR-028 — authentication and resource ownership**.
 
 ---
 

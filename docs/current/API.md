@@ -4,6 +4,21 @@ Este documento descreve somente endpoints implementados. A especificação OpenA
 
 Base local padrão: `http://localhost:8000`.
 
+## Autenticação — Stack 13
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/status`
+
+Cadastro/login criam uma sessão opaca persistente. O browser recebe cookie `amip_session` com `HttpOnly`, `SameSite=Lax` e `Secure` em staging/produção. Somente o hash do token é armazenado no banco.
+
+Enquanto nenhuma conta existe, o AMIP mantém o modo local legado sem exigir login. A primeira conta criada assume reuniões legadas sem owner. Depois que existe ao menos uma conta, endpoints protegidos exigem sessão válida.
+
+## Ownership
+
+Reuniões pertencem a `User` por `Meeting.owner_id`. Recursos derivados são autorizados através da reunião-pai. Um usuário não pode listar, consultar ou alterar reunião de outro usuário; tentativas de acesso cruzado retornam 404 para não revelar a existência do recurso.
+
 ## Reuniões
 
 - `GET /api/meetings`
@@ -11,6 +26,8 @@ Base local padrão: `http://localhost:8000`.
 - `POST /api/meetings`
 - `PUT /api/meetings/{meeting_id}`
 - `DELETE /api/meetings/{meeting_id}`
+
+Com autenticação ativa, listagem/pesquisa/CRUD são filtrados pelo usuário atual e novas reuniões recebem seu `owner_id`.
 
 ## Áudio
 
@@ -26,7 +43,7 @@ Base local padrão: `http://localhost:8000`.
 - `GET /api/meetings/{meeting_id}/jobs`
 - `DELETE /api/jobs/{job_id}`
 
-O job de análise usa `JobType.SUMMARIZE` e só pode ser criado quando a reunião está `DIARIZED` ou já `SUMMARIZING`.
+Jobs são autorizados pela reunião associada.
 
 ## Transcrição
 
@@ -36,50 +53,33 @@ O job de análise usa `JobType.SUMMARIZE` e só pode ser criado quando a reuniã
 
 `GET /api/meetings/{meeting_id}/diarization`
 
-Retorna speaker labels, timestamps, texto reconciliado e identidade do participante quando confirmada.
-
 ## Participantes
 
 - `GET /api/meetings/{meeting_id}/participants`
 - `PATCH /api/meetings/{meeting_id}/participants/{speaker_label}`
 
-## Inteligência por LLM — Stack 12
+## Inteligência por LLM
 
-### Consultar análise
+`GET /api/meetings/{meeting_id}/analysis`
 
-```http
-GET /api/meetings/{meeting_id}/analysis
-```
-
-A resposta contém:
-
-- `summary`;
-- `action_items`;
-- `decisions`;
-- `risks`;
-- `open_questions`;
-- `follow_up_tasks`;
-- `provider`;
-- `model_name`.
-
-Itens estruturados podem conter `owner` e uma lista de `evidence` com `speaker_label`, `participant_name`, `start_time`, `end_time` e `quote`.
-
-A análise é produzida fora do request HTTP pelo worker. O provider inicial é Ollama com modelo local configurável; a saída é validada por JSON Schema/Pydantic antes da persistência.
+A análise contém resumo, action items, decisões, riscos, perguntas abertas, follow-ups, provider/modelo e evidências rastreáveis.
 
 ## Interface web
 
+- `GET /login`
 - `GET /meetings`
 - `GET /meetings/{meeting_id}`
+
+A tela `/login` permite criar a primeira conta, registrar outra conta e fazer login. O workspace mostra apenas reuniões do usuário autenticado e oferece logout.
 
 ## Health
 
 `GET /health`
 
-Versão da aplicação na Stack 12: `0.8.0`.
+Versão da aplicação na Stack 13: `0.9.0`.
 
 ## Ainda não implementado
 
-- autenticação/autorização;
 - infraestrutura production-ready;
 - busca;
 - exportação;

@@ -33,6 +33,7 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 | TD-025 | `faster-whisper` é o provider STT inicial local | Accepted |
 | TD-026 | Identidade humana é separada dos speaker segments | Accepted |
 | TD-027 | Ollama/Qwen3 é o provider LLM local inicial com saída estruturada | Accepted |
+| TD-028 | Sessão opaca + ownership de Meeting é a fronteira multiusuário inicial | Accepted |
 
 ## TD-024 — Banco como fila durável inicial
 
@@ -40,36 +41,42 @@ Este arquivo mantém o registro ativo das principais decisões técnicas do AMIP
 
 ## TD-025 — Provider STT inicial local
 
-`faster-whisper` implementa `ITranscriber`, roda somente no worker e persiste `Transcription` + `TranscriptionSegment`. O CI usa fakes e não baixa modelo real.
+`faster-whisper` implementa `ITranscriber`, roda somente no worker e persiste `Transcription` + `TranscriptionSegment`.
 
 ## TD-026 — Participant identity layer
 
-`Participant` pertence à reunião e mapeia `speaker_label` para `display_name` + `confirmed`, mantendo identidade humana separada de `SpeakerSegment`. ADR-026.
+`Participant` pertence à reunião e mapeia `speaker_label` para `display_name` + `confirmed`. ADR-026.
 
 ## TD-027 — LLM local estruturado
 
+Ollama é o primeiro adapter LLM; `qwen3:4b` é o baseline configurável; a saída é estruturada/validada e a análise roda em job `SUMMARIZE`. ADR-027.
+
+## TD-028 — Authentication and resource ownership
+
 **Status:** Accepted  
 **Data:** 2026-08-17  
-**ADR:** `docs/adr/ADR-027-local-llm-structured-intelligence.md`
+**ADR:** `docs/adr/ADR-028-authentication-and-resource-ownership.md`
 
 ### Decisão
 
-- Ollama é o primeiro adapter LLM;
-- `qwen3:4b` é o baseline local configurável;
-- jobs `SUMMARIZE` executam a análise fora do processo HTTP;
-- a entrada inclui timestamps, speaker labels e participantes confirmados;
-- a saída usa JSON Schema e é validada por Pydantic;
-- resumo, action items, decisões, riscos e follow-ups são persistidos;
-- itens podem carregar `owner` e evidências rastreáveis;
-- provider e modelo usados são persistidos;
-- providers pagos permanecem adapters futuros, não dependências do domínio.
+- `User` representa uma conta;
+- senha usa `hashlib.scrypt` com salt aleatório;
+- sessão usa token opaco aleatório e revogável;
+- somente SHA-256 do token de sessão é persistido;
+- cookie é HttpOnly, SameSite=Lax e Secure fora do ambiente local;
+- `Meeting.owner_id` é a raiz da autorização;
+- recursos derivados herdam autorização da reunião-pai;
+- acesso cruzado retorna 404;
+- modo local sem contas continua disponível;
+- a primeira conta assume reuniões legadas sem owner;
+- JWT, OAuth/SSO, RBAC e MFA permanecem adiados até requisito real.
 
 ### Motivo
 
-Entrega inteligência útil sem cobrança obrigatória por token, mantém dados de reunião locais por padrão e reduz risco de hallucination ao exigir estrutura e evidências. O contrato permanece substituível quando houver necessidade de outro provider/modelo.
+Esta solução entrega isolamento multiusuário, logout/revogação e proteção de credenciais com baixo custo operacional, sem Redis, IdP externo ou infraestrutura prematura. Ela também mantém workers desacoplados da sessão HTTP.
 
 ---
 
-**Document Version:** 4.0  
+**Document Version:** 5.0  
 **Last Updated:** 2026-08-17  
 **Status:** Active

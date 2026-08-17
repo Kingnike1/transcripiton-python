@@ -4,11 +4,10 @@
 
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-17  
-**Stack atual:** Stack 13 — Autenticação e autorização  
+**Stack atual:** Stack 14 — Infraestrutura de produção  
 **Branch de integração:** `develop`  
-**Último merge:** PR #16 — Stack 12 Inteligência por LLM  
-**Commit de integração:** `02a60e5b1964d46e71a09616501be0c16ef589b4`  
-**Status:** Stacks 7–12 concluídas e integradas; Stack 13 é a próxima prioridade
+**Stack 13:** autenticação/autorização implementada em `agent/stack-13-auth`  
+**Status esperado após gate/merge:** Stacks 7–13 concluídas; Stack 14 é a próxima prioridade
 
 ## Capacidade atual
 
@@ -17,45 +16,45 @@
 - jobs duráveis e worker separado;
 - transcrição local com `faster-whisper`;
 - diarização local com `pyannote.audio` quando configurado;
-- identificação/confirmação de participantes por reunião;
-- inteligência estruturada local via Ollama + Qwen3 configurável;
-- resumo, action items, decisões, riscos, perguntas abertas e follow-ups;
-- saída do LLM validada por Pydantic/JSON Schema;
-- evidências com speaker/timestamps/citação para rastreabilidade;
-- provider/modelo persistidos junto à análise;
-- job durável `SUMMARIZE` fora do request HTTP;
-- API de consulta da análise;
+- identificação/confirmação de participantes;
+- inteligência estruturada local via Ollama + Qwen3;
+- usuários, login e logout;
+- senhas protegidas com `scrypt` + salt;
+- sessões opacas, persistentes e revogáveis;
+- cookie HttpOnly/SameSite e Secure fora de ambiente local;
+- ownership de reuniões por usuário;
+- isolamento de áudio, transcrição, diarização, participantes, análise e jobs pelo dono da reunião;
+- modo local legado preservado enquanto não existem contas;
+- primeira conta assume reuniões legadas sem dono;
 - Docker/Compose com migrations, web e worker.
 
-## Stack 12 — Inteligência por LLM — CONCLUÍDA
+## Stack 13 — Autenticação e autorização — IMPLEMENTADA
 
-- [x] provider local Ollama desacoplado;
-- [x] baseline `qwen3:4b`, configurável por ambiente;
-- [x] structured outputs via JSON Schema;
-- [x] validação Pydantic antes de persistir;
-- [x] transcript grounded com timestamps, speaker labels e nomes confirmados;
-- [x] resumo estruturado;
-- [x] action items e responsáveis;
-- [x] decisões;
-- [x] riscos;
-- [x] perguntas abertas e follow-ups;
-- [x] evidências/rastreabilidade;
-- [x] persistência do provider/modelo;
-- [x] job `SUMMARIZE` no worker durável;
-- [x] API `GET /api/meetings/{id}/analysis`;
-- [x] migration `0008_analysis_provider_metadata`;
-- [x] testes com provider fake;
-- [x] ADR-027;
-- [x] CI + Quality + Docker verdes no PR #16;
-- [x] PR #16 integrado em `develop`.
+- [x] entidade `User`;
+- [x] entidade `AuthSession`;
+- [x] cadastro, login, logout e status de autenticação;
+- [x] senha com `hashlib.scrypt`, salt aleatório e comparação constante;
+- [x] token de sessão opaco; somente hash SHA-256 persistido;
+- [x] sessão expira e pode ser revogada no logout;
+- [x] cookie HttpOnly/SameSite=Lax e Secure em staging/produção;
+- [x] `Meeting.owner_id`;
+- [x] primeira conta faz claim de reuniões legadas sem owner;
+- [x] reuniões novas recebem owner quando autenticação está ativa;
+- [x] listagem/pesquisa/CRUD filtrados por owner;
+- [x] proteção de áudio, transcrição, diarização, participantes, análise e jobs;
+- [x] acesso cruzado responde 404 para não revelar recurso alheio;
+- [x] UI de login/criação de conta/logout;
+- [x] modo local sem contas preservado;
+- [x] migration `0009_auth_ownership`;
+- [x] testes de sessão, hashing, legacy claim e isolamento multiusuário;
+- [x] documentação e ADR-028.
 
 ## Próximas stacks
 
-1. Stack 13 — autenticação/autorização;
-2. Stack 14 — infraestrutura de produção;
-3. Stack 15 — busca;
-4. Stack 16 — exportação;
-5. Stack 17 — gravação por microfone.
+1. Stack 14 — infraestrutura de produção;
+2. Stack 15 — busca;
+3. Stack 16 — exportação;
+4. Stack 17 — gravação por microfone.
 
 ## Pendências operacionais independentes
 
@@ -65,7 +64,7 @@
 
 ## Próxima Stack
 
-**Stack 13 — Autenticação e autorização** deve introduzir usuários/login e ownership/autorização por recurso sem quebrar o modo local atual.
+**Stack 14 — Infraestrutura de produção** deve tratar banco/storage/deploy/observabilidade/backups e hardening operacional sem transformar prematuramente o monólito em microserviços.
 
-**Document Version:** 8.1  
+**Document Version:** 9.0  
 **Status:** Active
