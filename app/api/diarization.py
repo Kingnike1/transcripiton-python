@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db
+from app.database.session import get_db
 from app.schemas.diarization import DiarizationResponse, SpeakerSegmentResponse
 from app.services.diarization_service import DiarizationService
 
