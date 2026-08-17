@@ -18,90 +18,71 @@ Erros normalizados incluem `status`, `code`, `detail` e `request_id`, além do h
 
 ## Áudio
 
-### Upload
+- `POST /api/meetings/{meeting_id}/audio`
+- `GET /api/meetings/{meeting_id}/audio`
+
+O upload usa streaming/staging, limite durante escrita, inspeção por `ffprobe` e no máximo um áudio ativo por reunião. `file_path` não faz parte do contrato público.
+
+## Jobs persistentes
+
+- `POST /api/meetings/{meeting_id}/jobs/transcription`
+- `POST /api/meetings/{meeting_id}/jobs/diarization`
+- `GET /api/jobs/{job_id}`
+- `GET /api/meetings/{meeting_id}/jobs`
+- `DELETE /api/jobs/{job_id}`
+
+Jobs usam `PENDING`, `RUNNING`, `RETRYING`, `COMPLETED`, `FAILED` e `CANCELLED`, com claim, lease, heartbeat, retry e recuperação stale.
+
+## Transcrição
 
 ```http
-POST /api/meetings/{meeting_id}/audio
-Content-Type: multipart/form-data
+GET /api/meetings/{meeting_id}/transcription
 ```
 
-O backend processa em chunks/staging, aplica limite durante escrita, valida arquivo, usa `ffprobe`, promove atomicamente e garante no máximo um áudio ativo.
+Retorna texto, idioma e segmentos persistidos com timestamps/confiança quando disponíveis.
 
-### Metadados
+## Diarização
 
 ```http
-GET /api/meetings/{meeting_id}/audio
+GET /api/meetings/{meeting_id}/diarization
 ```
 
-`file_path` não faz parte do contrato público.
+Retorna os segmentos com `speaker_label`, timestamps e texto reconciliado. Na Stack 11 a resposta também inclui os participantes da reunião e, por segmento, `participant_name` e `participant_confirmed`.
 
-## Jobs persistentes — Sprint 6B
+## Participantes — Stack 11
 
-### Criar/obter job ativo de transcrição
+### Listar identidades
 
 ```http
-POST /api/meetings/{meeting_id}/jobs/transcription
+GET /api/meetings/{meeting_id}/participants
 ```
 
-Pré-condições:
+Cada item contém `speaker_label`, `display_name` e `confirmed`.
 
-- reunião existe;
-- reunião possui áudio ativo.
+### Editar/confirmar identidade
 
-A criação é idempotente enquanto houver um job `PENDING`, `RUNNING` ou `RETRYING` do tipo `TRANSCRIBE` para a reunião. Chamadas repetidas retornam o mesmo job ativo.
+```http
+PATCH /api/meetings/{meeting_id}/participants/{speaker_label}
+Content-Type: application/json
+```
 
 Exemplo:
 
 ```json
 {
-  "id": "<uuid>",
-  "meeting_id": 1,
-  "job_type": "TRANSCRIBE",
-  "status": "PENDING",
-  "progress": 0,
-  "attempt": 0,
-  "max_attempts": 3,
-  "error_message": null,
-  "result": null,
-  "available_at": "2026-08-16T22:00:00",
-  "created_at": "2026-08-16T22:00:00",
-  "started_at": null,
-  "completed_at": null
+  "display_name": "Pablo",
+  "confirmed": true
 }
 ```
 
-### Consultar job
+Uma identidade marcada como confirmada exige nome não vazio. O mapeamento é local à reunião; não representa reconhecimento biométrico global entre reuniões.
 
-```http
-GET /api/jobs/{job_id}
-```
+## Interface web
 
-### Listar jobs da reunião
+- `GET /meetings`
+- `GET /meetings/{meeting_id}`
 
-```http
-GET /api/meetings/{meeting_id}/jobs
-```
-
-### Cancelar
-
-```http
-DELETE /api/jobs/{job_id}
-```
-
-Sucesso: HTTP 204. Somente `PENDING` ou `RETRYING` são canceláveis nesta versão. Cancelamento preemptivo de job já em execução não está implementado.
-
-### Estados
-
-```text
-PENDING
-RUNNING
-RETRYING
-COMPLETED
-FAILED
-CANCELLED
-```
-
-O worker usa lease/heartbeat. Jobs `RUNNING` cujo heartbeat expirou podem ser recuperados por outro worker.
+A tela de detalhe permite upload, transcrição, diarização e confirmação/edição dos participantes.
 
 ## Health
 
@@ -109,17 +90,18 @@ O worker usa lease/heartbeat. Jobs `RUNNING` cujo heartbeat expirou podem ser re
 GET /health
 ```
 
-A versão da aplicação após a Sprint 6B é `0.3.0`. O endpoint continua sendo liveness simples.
+Versão da aplicação na Stack 11: `0.7.0`.
 
 ## Ainda não implementado
 
-- transcrição real e consulta de transcript;
-- diarização;
-- LLM;
-- busca/exportação;
-- autenticação/autorização.
+- inteligência por LLM;
+- autenticação/autorização;
+- infraestrutura production-ready;
+- busca;
+- exportação;
+- gravação por microfone.
 
 ---
 
 **Status:** Active  
-**Last Updated:** 2026-08-16
+**Last Updated:** 2026-08-17

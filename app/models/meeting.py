@@ -13,6 +13,7 @@ from app.database.base import Base
 if TYPE_CHECKING:
     from app.models.analysis import MeetingAnalysis
     from app.models.audio import Audio
+    from app.models.participant import Participant
 
 
 class Meeting(Base):
@@ -31,6 +32,11 @@ class Meeting(Base):
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     audios: Mapped[List["Audio"]] = relationship("Audio", back_populates="meeting")
+    participants: Mapped[List["Participant"]] = relationship(
+        "Participant",
+        back_populates="meeting",
+        cascade="all, delete-orphan",
+    )
     analysis: Mapped[Optional["MeetingAnalysis"]] = relationship(
         "MeetingAnalysis", back_populates="meeting", uselist=False
     )
