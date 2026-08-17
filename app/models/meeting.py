@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import ProcessingStatus
@@ -14,14 +14,21 @@ if TYPE_CHECKING:
     from app.models.analysis import MeetingAnalysis
     from app.models.audio import Audio
     from app.models.participant import Participant
+    from app.models.user import User
 
 
 class Meeting(Base):
-    """Meeting aggregate root with processing status and soft deletion."""
+    """Meeting aggregate root with processing status, ownership and soft deletion."""
 
     __tablename__ = "meetings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
@@ -31,6 +38,7 @@ class Meeting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
+    owner: Mapped[Optional["User"]] = relationship("User", back_populates="meetings")
     audios: Mapped[List["Audio"]] = relationship("Audio", back_populates="meeting")
     participants: Mapped[List["Participant"]] = relationship(
         "Participant",
@@ -42,25 +50,20 @@ class Meeting(Base):
     )
 
     def is_active(self) -> bool:
-        """Return whether the meeting has not been soft-deleted."""
         return self.deleted_at is None
 
     def soft_delete(self) -> None:
-        """Soft-delete the meeting using the shared UTC clock."""
         now = utc_now()
         self.deleted_at = now
         self.updated_at = now
 
     def __repr__(self) -> str:
-        """Return a compact debugging representation."""
         return f"<Meeting(id={self.id}, title='{self.title}', status='{self.status}')>"
 
     def transition_status(self, new_status: ProcessingStatus) -> bool:
-        """Apply a valid processing-status transition."""
         current = ProcessingStatus(self.status)
         if not current.can_transition_to(new_status):
             return False
-
         self.status = new_status.value
         self.updated_at = utc_now()
         return True
