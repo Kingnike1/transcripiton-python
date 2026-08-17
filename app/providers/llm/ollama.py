@@ -1,8 +1,8 @@
 """Ollama provider for local structured meeting intelligence."""
 
 import json
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from http.client import HTTPConnection, HTTPSConnection
+from urllib.parse import urlparse
 
 from app.schemas.analysis import StructuredAnalysis
 
@@ -11,7 +11,13 @@ class OllamaLLMProvider:
     """Call a local Ollama server and enforce a Pydantic JSON schema."""
 
     def __init__(self, base_url: str, model: str, timeout_seconds: int = 180) -> None:
-        self.base_url = base_url.rstrip("/")
+        parsed = urlparse(base_url.rstrip("/"))
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("OLLAMA_URL must use http or https with a hostname")
+        self.scheme = parsed.scheme
+        self.host = parsed.hostname
+        self.port = parsed.port
+        self.base_path = parsed.path.rstrip("/")
         self.model = model
         self.timeout_seconds = timeout_seconds
 
@@ -35,17 +41,24 @@ class OllamaLLMProvider:
                 {"role": "user", "content": prompt},
             ],
         }
-        request = Request(
-            f"{self.base_url}/api/chat",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        connection_class = HTTPSConnection if self.scheme == "https" else HTTPConnection
+        connection = connection_class(self.host, self.port, timeout=self.timeout_seconds)
+        path = f"{self.base_path}/api/chat" or "/api/chat"
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:  # noqa: S310
-                body = json.loads(response.read().decode("utf-8"))
-        except (HTTPError, URLError, TimeoutError) as exc:
+            connection.request(
+                "POST",
+                path,
+                body=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            response = connection.getresponse()
+            if response.status < 200 or response.status >= 300:
+                raise RuntimeError(f"Ollama returned HTTP {response.status}")
+            body = json.loads(response.read().decode("utf-8"))
+        except (OSError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
             raise RuntimeError("Ollama is unavailable or failed to answer") from exc
+        finally:
+            connection.close()
 
         message = body.get("message", {})
         content = message.get("content")
