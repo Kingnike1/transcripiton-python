@@ -9,6 +9,7 @@ from app.models.meeting import Meeting
 from app.models.speaker import SpeakerSegment as SpeakerSegmentModel
 from app.models.transcription import Transcription
 from app.services.interfaces import DiarizationResult
+from app.services.participant_service import ParticipantService
 
 
 class DiarizationService:
@@ -46,6 +47,7 @@ class DiarizationService:
         )
         persisted: list[SpeakerSegmentModel] = []
         transcript_segments = list(transcription.segments)
+        labels: set[str] = set()
         for segment in result.segments or []:
             text_parts = [
                 item.text
@@ -62,6 +64,10 @@ class DiarizationService:
             )
             self.session.add(row)
             persisted.append(row)
+            if segment.speaker_label:
+                labels.add(segment.speaker_label)
+
+        ParticipantService(self.session).ensure_labels(meeting_id, labels)
 
         if not meeting.transition_status(ProcessingStatus.DIARIZED):
             raise ValueError("Invalid transition to DIARIZED")
