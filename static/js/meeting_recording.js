@@ -20,6 +20,7 @@
   let startedAt = null;
   let timerId = null;
   let previewUrl = null;
+  let discardRequested = false;
 
   function setStatus(message, kind = 'secondary') {
     status.className = `small text-${kind}`;
@@ -53,6 +54,18 @@
     chunks = [];
   }
 
+  function resetControls() {
+    startBtn.classList.remove('d-none');
+    startBtn.disabled = false;
+    stopBtn.classList.add('d-none');
+    stopBtn.disabled = false;
+    uploadBtn.classList.add('d-none');
+    uploadBtn.disabled = false;
+    discardBtn.classList.add('d-none');
+    discardBtn.disabled = false;
+    timer.textContent = '00:00';
+  }
+
   function extensionForMime(mime) {
     const base = mime.split(';', 1)[0].toLowerCase();
     if (base === 'audio/ogg' || base === 'application/ogg') return 'ogg';
@@ -72,6 +85,7 @@
 
   async function startRecording() {
     resetPreview();
+    discardRequested = false;
     if (!window.isSecureContext) {
       setStatus('O microfone exige HTTPS ou localhost.', 'danger');
       return;
@@ -93,10 +107,19 @@
       recorder.addEventListener('stop', () => {
         stopTracks();
         stopTimer();
+        if (discardRequested) {
+          resetPreview();
+          resetControls();
+          recorder = null;
+          discardRequested = false;
+          setStatus('Nenhuma gravação em andamento.', 'secondary');
+          return;
+        }
         recordedBlob = new Blob(chunks, {type: recordedMimeType});
         if (!recordedBlob.size) {
-          setStatus('Nenhum áudio foi capturado. Tente novamente.', 'danger');
+          resetControls();
           discardBtn.classList.remove('d-none');
+          setStatus('Nenhum áudio foi capturado. Tente novamente.', 'danger');
           return;
         }
         previewUrl = URL.createObjectURL(recordedBlob);
@@ -106,6 +129,7 @@
         discardBtn.classList.remove('d-none');
         startBtn.classList.add('d-none');
         stopBtn.classList.add('d-none');
+        stopBtn.disabled = false;
         setStatus(`Gravação pronta (${(recordedBlob.size / 1024 / 1024).toFixed(2)} MB). Revise antes de enviar.`, 'success');
       });
       recorder.start(1000);
@@ -118,9 +142,11 @@
       uploadBtn.classList.add('d-none');
       discardBtn.classList.remove('d-none');
       stopBtn.classList.remove('d-none');
+      stopBtn.disabled = false;
       setStatus('Gravando. O áudio ainda está somente neste navegador.', 'danger');
     } catch (error) {
       stopTracks();
+      resetControls();
       const denied = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
       setStatus(denied ? 'Permissão de microfone negada pelo navegador.' : 'Não foi possível iniciar o microfone.', 'danger');
     }
@@ -133,18 +159,17 @@
   }
 
   function discardRecording() {
-    if (recorder && recorder.state !== 'inactive') recorder.stop();
-    stopTracks();
-    stopTimer();
+    if (recorder && recorder.state !== 'inactive') {
+      discardRequested = true;
+      recorder.stop();
+      stopTracks();
+      stopTimer();
+      setStatus('Descartando gravação...', 'secondary');
+      return;
+    }
     resetPreview();
     recorder = null;
-    startBtn.classList.remove('d-none');
-    startBtn.disabled = false;
-    stopBtn.classList.add('d-none');
-    stopBtn.disabled = false;
-    uploadBtn.classList.add('d-none');
-    discardBtn.classList.add('d-none');
-    timer.textContent = '00:00';
+    resetControls();
     setStatus('Nenhuma gravação em andamento.', 'secondary');
   }
 
