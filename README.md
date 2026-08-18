@@ -1,13 +1,14 @@
 # AMIP — AI Meeting Intelligence Platform
 
-O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas, identificar participantes, gerar inteligência estruturada, buscar conhecimento e exportar resultados.
+O AMIP é um monólito modular em Python/FastAPI para gravar ou receber áudio de reuniões, transcrever, separar falas, identificar participantes, gerar inteligência estruturada, buscar conhecimento e exportar resultados.
 
-> **Estado atual:** o fluxo cobre reunião → áudio → transcrição → diarização → participantes → inteligência por LLM → busca → exportação, com contas, isolamento por usuário e baseline de produção. A próxima prioridade após a Stack 16 é gravação por microfone.
+> **Estado atual:** o fluxo cobre reunião → gravação/upload → transcrição → diarização → participantes → inteligência por LLM → busca → exportação, com contas, isolamento por usuário e baseline de produção. Com a Stack 17, o ciclo funcional planejado de Stacks 7–17 está completo.
 
 ## O que funciona hoje
 
 - CRUD e interface de reuniões;
 - upload seguro de áudio e inspeção por `ffprobe`;
+- gravação pelo microfone do navegador com preview antes do envio;
 - jobs persistentes + worker separado;
 - transcrição local com `faster-whisper`;
 - diarização com `pyannote.audio` quando configurado;
@@ -29,6 +30,8 @@ User
   ↓ owns
 Meeting
   ↓
+Microphone recording / Audio upload
+  ↓
 Audio
   ↓ TRANSCRIBE
 Transcription
@@ -43,6 +46,14 @@ Structured meeting intelligence
   ↓
 Search / Export
 ```
+
+## Gravação por microfone
+
+Abra uma reunião em `/meetings/{id}` e use **Gravar pelo microfone**. O navegador solicita permissão, grava localmente, oferece preview e só envia o arquivo quando o usuário confirma **Usar gravação**.
+
+A captura usa `MediaRecorder` e tenta WebM/Opus, WebM, Ogg/Opus e MP4 conforme suporte do navegador. Depois do envio, o áudio entra no mesmo pipeline seguro do upload convencional: validação, limite de tamanho, assinatura do arquivo, `ffprobe`, storage e transcrição.
+
+O recurso exige HTTPS ou localhost, conforme as regras de segurança dos navegadores para acesso ao microfone.
 
 ## Busca
 
