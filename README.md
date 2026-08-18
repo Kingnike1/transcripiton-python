@@ -1,8 +1,8 @@
 # AMIP — AI Meeting Intelligence Platform
 
-O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas, identificar participantes, gerar inteligência estruturada e recuperar esse conhecimento por busca textual.
+O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas, identificar participantes, gerar inteligência estruturada, buscar conhecimento e exportar resultados.
 
-> **Estado atual:** o fluxo cobre reunião → áudio → transcrição → diarização → participantes → inteligência por LLM → busca, com contas, isolamento por usuário e baseline de produção. A próxima prioridade após a Stack 15 é exportação.
+> **Estado atual:** o fluxo cobre reunião → áudio → transcrição → diarização → participantes → inteligência por LLM → busca → exportação, com contas, isolamento por usuário e baseline de produção. A próxima prioridade após a Stack 16 é gravação por microfone.
 
 ## O que funciona hoje
 
@@ -17,6 +17,7 @@ O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniõe
 - usuários, cadastro, login e logout;
 - sessão opaca persistente/revogável e ownership;
 - busca em título, descrição e texto transcrito, isolada por usuário;
+- exportação TXT, Markdown, JSON, DOCX e PDF;
 - PostgreSQL/Compose de produção, readiness e backups;
 - SQLite preservado para desenvolvimento/testes;
 - migrations e quality gates.
@@ -40,18 +41,24 @@ Ollama / Qwen3
   ↓
 Structured meeting intelligence
   ↓
-Text search
+Search / Export
 ```
 
 ## Busca
-
-Na interface, acesse `/meetings` e use o campo de busca. Pela API:
 
 ```text
 GET /api/search?q=termo&skip=0&limit=20
 ```
 
-A busca considera título, descrição e transcrição, devolve contexto do match e respeita o owner da reunião. O baseline é SQL portável; PostgreSQL FTS fica reservado para quando volume e métricas justificarem. Vector database não é requisito desta etapa.
+A busca considera título, descrição e transcrição, devolve contexto do match e respeita o owner da reunião.
+
+## Exportação
+
+```text
+GET /api/meetings/{meeting_id}/export?format=md
+```
+
+Formatos: `txt`, `md`, `json`, `docx` e `pdf`. Os arquivos são gerados sob demanda e podem incluir metadados, participantes, transcrição segmentada e análise estruturada. Reuniões ainda sem transcrição ou análise continuam exportáveis.
 
 ## Autenticação
 

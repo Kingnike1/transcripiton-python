@@ -17,7 +17,7 @@ Enquanto nenhuma conta existe, o AMIP mantém o modo local legado sem exigir log
 
 ## Ownership
 
-Reuniões pertencem a `User` por `Meeting.owner_id`. Recursos derivados são autorizados através da reunião-pai. Um usuário não pode listar, consultar ou alterar reunião de outro usuário; tentativas de acesso cruzado retornam 404 para não revelar a existência do recurso.
+Reuniões pertencem a `User` por `Meeting.owner_id`. Recursos derivados são autorizados através da reunião-pai. Um usuário não pode listar, consultar, exportar ou alterar reunião de outro usuário; tentativas de acesso cruzado retornam 404 para não revelar a existência do recurso.
 
 ## Reuniões
 
@@ -31,9 +31,15 @@ Reuniões pertencem a `User` por `Meeting.owner_id`. Recursos derivados são aut
 
 `GET /api/search?q={texto}&skip=0&limit=20`
 
-Pesquisa textual entre reuniões do usuário atual. O baseline consulta título, descrição e texto integral da transcrição, devolvendo reunião, campos que produziram o match e um snippet contextual. A query aceita 2–200 caracteres. O contrato é ownership-aware e não retorna reuniões de outro usuário.
+Pesquisa textual entre reuniões do usuário atual. O baseline consulta título, descrição e texto integral da transcrição, devolvendo reunião, campos que produziram o match e um snippet contextual.
 
-A implementação inicial é SQL portável para SQLite/PostgreSQL. PostgreSQL FTS fica como evolução de performance quando métricas justificarem; vector database não faz parte desta Stack.
+## Exportação — Stack 16
+
+`GET /api/meetings/{meeting_id}/export?format={formato}`
+
+Formatos aceitos: `txt`, `md`, `json`, `docx` e `pdf`.
+
+O arquivo é gerado sob demanda e reúne metadados, participantes, transcrição segmentada quando disponível e inteligência estruturada. A ausência de transcrição ou análise não impede a exportação. O endpoint usa `Content-Disposition: attachment` e preserva o isolamento por owner.
 
 ## Áudio
 
@@ -73,21 +79,18 @@ A implementação inicial é SQL portável para SQLite/PostgreSQL. PostgreSQL FT
 - `GET /meetings?q={texto}`
 - `GET /meetings/{meeting_id}`
 
-A listagem possui busca por reuniões e transcrições, preservando o isolamento por usuário.
-
 ## Health
 
 - `GET /health`
 - `GET /ready`
 
-Versão da aplicação na Stack 15: `0.11.0`.
+Versão da aplicação na Stack 16: `0.12.0`.
 
 ## Ainda não implementado
 
-- exportação;
 - gravação por microfone.
 
 ---
 
 **Status:** Active  
-**Last Updated:** 2026-08-17
+**Last Updated:** 2026-08-18
