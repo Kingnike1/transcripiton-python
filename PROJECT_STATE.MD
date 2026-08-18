@@ -6,14 +6,15 @@
 **Última atualização:** 2026-08-18  
 **Stack atual:** Stack 17 — Gravação por microfone  
 **Branch de integração:** `develop`  
-**Último merge:** PR #20 — Stack 16 Exportação  
-**Commit de integração:** `e1057146329fdde98acc2b06e3141bd09856b35c`  
-**Status:** Stacks 7–16 concluídas e integradas; Stack 17 é a próxima prioridade
+**Branch da Stack 17:** `agent/stack-17-microphone-recording`  
+**Status esperado após gate/merge:** Stacks 7–17 concluídas; ciclo planejado de Stacks concluído
 
 ## Capacidade atual
 
 - CRUD e interface de reuniões;
 - upload/armazenamento seguro de áudio;
+- gravação de reunião pelo microfone do navegador;
+- preview local antes do envio;
 - jobs duráveis e worker separado;
 - transcrição local com `faster-whisper`;
 - diarização local com `pyannote.audio` quando configurado;
@@ -24,45 +25,44 @@
 - busca textual ownership-aware em título, descrição e transcrição;
 - exportação sob demanda em TXT, Markdown, JSON, DOCX e PDF.
 
-## Stack 16 — Exportação — CONCLUÍDA
+## Stack 17 — Gravação por microfone — IMPLEMENTADA
 
-- [x] `ExportService` dedicado;
-- [x] pacote unificado com metadados, participantes, transcrição e análise;
-- [x] exportação TXT;
-- [x] exportação Markdown;
-- [x] exportação JSON estruturado;
-- [x] exportação DOCX editável;
-- [x] exportação PDF para distribuição;
-- [x] funcionamento mesmo com transcrição/análise ainda ausentes;
-- [x] isolamento por `owner_id` antes da geração do arquivo;
-- [x] `GET /api/meetings/{meeting_id}/export?format=...`;
-- [x] `Content-Disposition` para download;
-- [x] arquivos gerados em memória, sem duplicação em storage;
-- [x] testes de formatos, dados incompletos e ownership;
-- [x] ADR-031;
-- [x] versão 0.12.0;
-- [x] CI + Quality + Docker verdes no PR #20;
-- [x] PR #20 integrado em `develop`.
+- [x] captura via `getUserMedia`;
+- [x] gravação via `MediaRecorder`;
+- [x] seleção de formato compatível pelo navegador;
+- [x] suporte a WebM/Opus, WebM, Ogg/Opus e MP4 quando disponíveis;
+- [x] contador de duração;
+- [x] parar e descartar gravação;
+- [x] preview local antes do upload;
+- [x] áudio não é enviado sem confirmação do usuário;
+- [x] reaproveitamento do endpoint seguro de upload existente;
+- [x] normalização segura de MIME types com parâmetros de codec;
+- [x] validação de assinatura/tamanho/ffprobe preservada;
+- [x] encerramento das tracks do microfone ao parar, descartar ou sair;
+- [x] tratamento de permissão negada e navegador incompatível;
+- [x] requisito explícito de HTTPS ou localhost;
+- [x] testes de integração com o pipeline existente;
+- [x] ADR-032;
+- [x] versão 0.13.0;
+- [ ] CI + Quality + Docker verdes;
+- [ ] PR integrado em `develop`.
 
-## Decisão de evolução
+## Decisão de arquitetura
 
-Exports são gerados sob demanda e não persistidos. Isso evita cópias redundantes e problemas de sincronização. Caso documentos muito grandes se tornem comuns, geração assíncrona/streaming poderá ser adicionada mantendo o contrato funcional.
+A gravação não cria um segundo pipeline de mídia. O navegador produz um arquivo temporário local e, somente após confirmação do usuário, envia esse arquivo ao mesmo pipeline de upload existente. Isso mantém storage, validação, ownership, inspeção e transições de estado em um único caminho.
 
-## Próximas stacks
+## Próximos passos após Stack 17
 
-1. Stack 17 — gravação por microfone.
+Não há uma Stack 18 planejada no backlog atual. Depois do merge, o foco passa para validação operacional end-to-end, smoke tests reais, hardening de produção e definição de uma próxima fase de produto baseada no uso real.
 
 ## Pendências operacionais independentes
 
 - instalar Ollama e baixar `qwen3:4b` na máquina de uso para smoke test real;
 - smoke test com áudio real/modelos baixados na máquina de uso;
+- smoke test da gravação em navegador real via HTTPS/localhost;
 - configurar destino off-host para backups no ambiente de produção escolhido;
 - configurar proxy/TLS e monitor externo no ambiente de produção escolhido;
 - branch protection administrativa da `main` quando permissões permitirem.
 
-## Próxima Stack
-
-**Stack 17 — Gravação por microfone** é a próxima prioridade.
-
-**Document Version:** 12.1  
+**Document Version:** 13.0  
 **Status:** Active

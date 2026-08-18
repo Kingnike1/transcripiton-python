@@ -41,10 +41,16 @@ Formatos aceitos: `txt`, `md`, `json`, `docx` e `pdf`.
 
 O arquivo é gerado sob demanda e reúne metadados, participantes, transcrição segmentada quando disponível e inteligência estruturada. A ausência de transcrição ou análise não impede a exportação. O endpoint usa `Content-Disposition: attachment` e preserva o isolamento por owner.
 
-## Áudio
+## Áudio e gravação — Stack 17
 
 - `POST /api/meetings/{meeting_id}/audio`
 - `GET /api/meetings/{meeting_id}/audio`
+
+A gravação por microfone não cria um endpoint separado. O navegador usa `getUserMedia` + `MediaRecorder`, mantém o blob local para preview e, após confirmação do usuário, envia o arquivo para o mesmo `POST /audio` usado pelo upload manual.
+
+Parâmetros MIME de navegador, como `audio/webm;codecs=opus`, são normalizados para o tipo base antes da persistência. Validação de extensão, assinatura do arquivo, tamanho máximo, `ffprobe`, ownership e transições de estado continuam obrigatórias.
+
+A captura de microfone exige HTTPS ou localhost e depende do suporte do navegador ao `MediaRecorder`.
 
 ## Jobs persistentes
 
@@ -79,16 +85,14 @@ O arquivo é gerado sob demanda e reúne metadados, participantes, transcrição
 - `GET /meetings?q={texto}`
 - `GET /meetings/{meeting_id}`
 
+A página da reunião inclui upload manual, gravação por microfone com preview, transcrição, diarização e identificação de participantes.
+
 ## Health
 
 - `GET /health`
 - `GET /ready`
 
-Versão da aplicação na Stack 16: `0.12.0`.
-
-## Ainda não implementado
-
-- gravação por microfone.
+Versão da aplicação na Stack 17: `0.13.0`.
 
 ---
 

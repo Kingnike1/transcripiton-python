@@ -133,7 +133,7 @@ class AudioService:
                 filename=Path(filename).name,
                 file_path=stored_path,
                 file_size=size_bytes,
-                mime_type=content_type.lower(),
+                mime_type=self.validator.normalize_content_type(content_type),
                 duration=duration,
                 codec_name=media.codec_name,
                 channels=media.channels,

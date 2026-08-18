@@ -21,6 +21,11 @@ class AudioValidator:
     def __init__(self, max_size: int = settings.MAX_UPLOAD_SIZE) -> None:
         self.max_size = max_size
 
+    @staticmethod
+    def normalize_content_type(content_type: str) -> str:
+        """Return the base MIME type, ignoring codec parameters added by browsers."""
+        return content_type.split(";", 1)[0].strip().lower()
+
     def validate_metadata(self, filename: str, content_type: str) -> str:
         """Validate filename and declared MIME type before reading the upload."""
         if (
@@ -36,7 +41,8 @@ class AudioValidator:
         allowed_mime_types = self.ALLOWED_TYPES.get(extension)
         if not allowed_mime_types:
             raise AudioFormatError(f"Unsupported audio extension: {extension or 'none'}")
-        if content_type.lower() not in allowed_mime_types:
+        normalized_content_type = self.normalize_content_type(content_type)
+        if normalized_content_type not in allowed_mime_types:
             raise AudioFormatError(
                 f"Content type {content_type} does not match extension {extension}"
             )
