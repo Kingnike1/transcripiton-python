@@ -17,4 +17,8 @@ pydantic-settings==2.14.2
 # Templates
 jinja2==3.1.6
 
+# Document export
+python-docx==1.2.0
+reportlab==4.4.3
+
 # AI & ML providers are added only when their implementation stack is active.
