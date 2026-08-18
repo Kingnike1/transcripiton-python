@@ -27,7 +27,13 @@ Reuniões pertencem a `User` por `Meeting.owner_id`. Recursos derivados são aut
 - `PUT /api/meetings/{meeting_id}`
 - `DELETE /api/meetings/{meeting_id}`
 
-Com autenticação ativa, listagem/pesquisa/CRUD são filtrados pelo usuário atual e novas reuniões recebem seu `owner_id`.
+## Busca — Stack 15
+
+`GET /api/search?q={texto}&skip=0&limit=20`
+
+Pesquisa textual entre reuniões do usuário atual. O baseline consulta título, descrição e texto integral da transcrição, devolvendo reunião, campos que produziram o match e um snippet contextual. A query aceita 2–200 caracteres. O contrato é ownership-aware e não retorna reuniões de outro usuário.
+
+A implementação inicial é SQL portável para SQLite/PostgreSQL. PostgreSQL FTS fica como evolução de performance quando métricas justificarem; vector database não faz parte desta Stack.
 
 ## Áudio
 
@@ -42,8 +48,6 @@ Com autenticação ativa, listagem/pesquisa/CRUD são filtrados pelo usuário at
 - `GET /api/jobs/{job_id}`
 - `GET /api/meetings/{meeting_id}/jobs`
 - `DELETE /api/jobs/{job_id}`
-
-Jobs são autorizados pela reunião associada.
 
 ## Transcrição
 
@@ -62,26 +66,24 @@ Jobs são autorizados pela reunião associada.
 
 `GET /api/meetings/{meeting_id}/analysis`
 
-A análise contém resumo, action items, decisões, riscos, perguntas abertas, follow-ups, provider/modelo e evidências rastreáveis.
-
 ## Interface web
 
 - `GET /login`
 - `GET /meetings`
+- `GET /meetings?q={texto}`
 - `GET /meetings/{meeting_id}`
 
-A tela `/login` permite criar a primeira conta, registrar outra conta e fazer login. O workspace mostra apenas reuniões do usuário autenticado e oferece logout.
+A listagem possui busca por reuniões e transcrições, preservando o isolamento por usuário.
 
 ## Health
 
-`GET /health`
+- `GET /health`
+- `GET /ready`
 
-Versão da aplicação na Stack 13: `0.9.0`.
+Versão da aplicação na Stack 15: `0.11.0`.
 
 ## Ainda não implementado
 
-- infraestrutura production-ready;
-- busca;
 - exportação;
 - gravação por microfone.
 
