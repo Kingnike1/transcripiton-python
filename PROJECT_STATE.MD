@@ -6,8 +6,9 @@
 **Última atualização:** 2026-08-17  
 **Stack atual:** Stack 16 — Exportação  
 **Branch de integração:** `develop`  
-**Branch da Stack 15:** `agent/stack-15-search`  
-**Status esperado após gate/merge:** Stacks 7–15 concluídas; Stack 16 é a próxima prioridade
+**Último merge:** PR #19 — Stack 15 Busca  
+**Commit de integração:** `2f828781cf8770bcccf40a6b1216b17933fd2e92`  
+**Status:** Stacks 7–15 concluídas e integradas; Stack 16 é a próxima prioridade
 
 ## Capacidade atual
 
@@ -23,7 +24,7 @@
 - busca textual ownership-aware em título, descrição e transcrição;
 - interface e API de busca com snippet contextual.
 
-## Stack 15 — Busca — IMPLEMENTADA
+## Stack 15 — Busca — CONCLUÍDA
 
 - [x] `SearchService` dedicado;
 - [x] busca em título e descrição;
@@ -37,8 +38,8 @@
 - [x] testes de busca, transcrição e isolamento;
 - [x] ADR-030;
 - [x] versão 0.11.0;
-- [ ] CI + Quality + Docker verdes;
-- [ ] PR integrado em `develop`.
+- [x] CI + Quality + Docker verdes no PR #19;
+- [x] PR #19 integrado em `develop`.
 
 ## Decisão de evolução
 
@@ -59,7 +60,7 @@ O baseline usa SQL portável para preservar paridade entre desenvolvimento/teste
 
 ## Próxima Stack
 
-Após gate/merge da Stack 15, **Stack 16 — Exportação** é a próxima prioridade.
+**Stack 16 — Exportação** é a próxima prioridade.
 
-**Document Version:** 11.0  
+**Document Version:** 11.1  
 **Status:** Active
