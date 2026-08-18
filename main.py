@@ -41,7 +41,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="AI Meeting Intelligence Platform - Transcribe, analyze, and archive meetings",
-    version="0.12.0",
+    version="0.13.0",
     lifespan=lifespan,
 )
 
