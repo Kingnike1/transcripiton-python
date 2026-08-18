@@ -6,7 +6,8 @@ import io
 import json
 import re
 from dataclasses import asdict, dataclass
-from typing import Any
+from html import escape
+from typing import Any, Callable
 
 from docx import Document
 from reportlab.lib.pagesizes import A4
@@ -92,7 +93,7 @@ class ExportService:
             .order_by(Audio.created_at.desc())
             .first()
         )
-        transcription = None
+        transcription: Transcription | None = None
         if audio is not None:
             transcription = (
                 self.db.query(Transcription)
@@ -103,26 +104,26 @@ class ExportService:
         segments: list[ExportSegment] = []
         if transcription is not None:
             if transcription.speaker_segments:
-                for segment in transcription.speaker_segments:
-                    label = segment.speaker_label
+                for speaker_segment in transcription.speaker_segments:
+                    label = speaker_segment.speaker_label
                     segments.append(
                         ExportSegment(
-                            start_time=segment.start_time,
-                            end_time=segment.end_time,
+                            start_time=speaker_segment.start_time,
+                            end_time=speaker_segment.end_time,
                             speaker_label=label,
                             speaker_name=participant_map.get(label, label),
-                            text=segment.text,
+                            text=speaker_segment.text,
                         )
                     )
             else:
-                for segment in transcription.segments:
+                for transcript_segment in transcription.segments:
                     segments.append(
                         ExportSegment(
-                            start_time=segment.start_time,
-                            end_time=segment.end_time,
+                            start_time=transcript_segment.start_time,
+                            end_time=transcript_segment.end_time,
                             speaker_label=None,
                             speaker_name=None,
-                            text=segment.text,
+                            text=transcript_segment.text,
                         )
                     )
 
@@ -153,11 +154,14 @@ class ExportService:
             raise ValueError(f"Unsupported export format: {fmt}")
         bundle = self.build_bundle(meeting_id, owner_id=owner_id)
         slug = self._slug(bundle.title) or f"meeting-{bundle.meeting_id}"
-        renderers = {
+        renderers: dict[str, tuple[Callable[[ExportBundle], bytes], str]] = {
             "txt": (self._render_txt, "text/plain; charset=utf-8"),
             "md": (self._render_markdown, "text/markdown; charset=utf-8"),
             "json": (self._render_json, "application/json"),
-            "docx": (self._render_docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            "docx": (
+                self._render_docx,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
             "pdf": (self._render_pdf, "application/pdf"),
         }
         renderer, media_type = renderers[normalized]
@@ -201,7 +205,7 @@ class ExportService:
 
     def _transcript_lines(self, bundle: ExportBundle) -> list[str]:
         if bundle.segments:
-            lines = []
+            lines: list[str] = []
             for segment in bundle.segments:
                 who = segment.speaker_name or segment.speaker_label or "Falante"
                 lines.append(
@@ -256,7 +260,16 @@ class ExportService:
             ]
             or ["- Nenhum participante identificado."]
         )
-        lines.extend(["", "TRANSCRIÇÃO", *self._transcript_lines(bundle), "", "ANÁLISE", *self._analysis_lines(bundle)])
+        lines.extend(
+            [
+                "",
+                "TRANSCRIÇÃO",
+                *self._transcript_lines(bundle),
+                "",
+                "ANÁLISE",
+                *self._analysis_lines(bundle),
+            ]
+        )
         return "\n".join(lines).encode("utf-8")
 
     def _render_markdown(self, bundle: ExportBundle) -> bytes:
@@ -270,7 +283,11 @@ class ExportService:
             "## Participantes",
         ]
         lines.extend(
-            [f"- {p.display_name or p.speaker_label} (`{p.speaker_label}`){' ✓' if p.confirmed else ''}" for p in bundle.participants]
+            [
+                f"- {p.display_name or p.speaker_label} (`{p.speaker_label}`)"
+                f"{' ✓' if p.confirmed else ''}"
+                for p in bundle.participants
+            ]
             or ["- Nenhum participante identificado."]
         )
         lines.extend(["", "## Transcrição"])
@@ -311,7 +328,8 @@ class ExportService:
 
     @staticmethod
     def _pdf_safe(value: str) -> str:
-        return value.encode("cp1252", errors="replace").decode("cp1252")
+        windows_text = value.encode("cp1252", errors="replace").decode("cp1252")
+        return escape(windows_text)
 
     def _render_pdf(self, bundle: ExportBundle) -> bytes:
         buffer = io.BytesIO()
@@ -325,7 +343,8 @@ class ExportService:
             story.append(Paragraph(self._pdf_safe(line), styles["BodyText"]))
         story.extend([Spacer(1, 12), Paragraph("Participantes", styles["Heading2"])])
         participant_lines = [
-            f"• {p.display_name or p.speaker_label} ({p.speaker_label}){' — confirmado' if p.confirmed else ''}"
+            f"- {p.display_name or p.speaker_label} ({p.speaker_label})"
+            f"{' — confirmado' if p.confirmed else ''}"
             for p in bundle.participants
         ] or ["Nenhum participante identificado."]
         for line in participant_lines:
