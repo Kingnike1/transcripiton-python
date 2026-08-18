@@ -3,12 +3,11 @@
 ## Estado Atual do Projeto
 
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
-**Última atualização:** 2026-08-17  
-**Stack atual:** Stack 16 — Exportação  
+**Última atualização:** 2026-08-18  
+**Stack atual:** Stack 17 — Gravação por microfone  
 **Branch de integração:** `develop`  
-**Último merge:** PR #19 — Stack 15 Busca  
-**Commit de integração:** `2f828781cf8770bcccf40a6b1216b17933fd2e92`  
-**Status:** Stacks 7–15 concluídas e integradas; Stack 16 é a próxima prioridade
+**Branch da Stack 16:** `agent/stack-16-export`  
+**Status esperado após gate/merge:** Stacks 7–16 concluídas; Stack 17 é a próxima prioridade
 
 ## Capacidade atual
 
@@ -22,33 +21,35 @@
 - autenticação, sessões revogáveis e ownership;
 - baseline de produção com PostgreSQL, migrations, web, worker e backups;
 - busca textual ownership-aware em título, descrição e transcrição;
-- interface e API de busca com snippet contextual.
+- exportação sob demanda em TXT, Markdown, JSON, DOCX e PDF.
 
-## Stack 15 — Busca — CONCLUÍDA
+## Stack 16 — Exportação — IMPLEMENTADA
 
-- [x] `SearchService` dedicado;
-- [x] busca em título e descrição;
-- [x] busca no texto integral das transcrições;
-- [x] isolamento por `owner_id` antes da entrega de resultados;
-- [x] `GET /api/search` com paginação;
-- [x] indicação dos campos que produziram o match;
-- [x] snippet contextual para conteúdo encontrado;
-- [x] campo de busca na interface `/meetings`;
-- [x] SQLite e PostgreSQL suportados sem serviço externo;
-- [x] testes de busca, transcrição e isolamento;
-- [x] ADR-030;
-- [x] versão 0.11.0;
-- [x] CI + Quality + Docker verdes no PR #19;
-- [x] PR #19 integrado em `develop`.
+- [x] `ExportService` dedicado;
+- [x] pacote unificado com metadados, participantes, transcrição e análise;
+- [x] exportação TXT;
+- [x] exportação Markdown;
+- [x] exportação JSON estruturado;
+- [x] exportação DOCX editável;
+- [x] exportação PDF para distribuição;
+- [x] funcionamento mesmo com transcrição/análise ainda ausentes;
+- [x] isolamento por `owner_id` antes da geração do arquivo;
+- [x] `GET /api/meetings/{meeting_id}/export?format=...`;
+- [x] `Content-Disposition` para download;
+- [x] arquivos gerados em memória, sem duplicação em storage;
+- [x] testes de formatos, dados incompletos e ownership;
+- [x] ADR-031;
+- [x] versão 0.12.0;
+- [ ] CI + Quality + Docker verdes;
+- [ ] PR integrado em `develop`.
 
 ## Decisão de evolução
 
-O baseline usa SQL portável para preservar paridade entre desenvolvimento/testes e produção. PostgreSQL Full Text Search (`tsvector`/GIN) será introduzido quando métricas/volume justificarem. Vector database não será adicionado sem requisito de busca semântica comprovado.
+Exports são gerados sob demanda e não persistidos. Isso evita cópias redundantes e problemas de sincronização. Caso documentos muito grandes se tornem comuns, geração assíncrona/streaming poderá ser adicionada mantendo o contrato funcional.
 
 ## Próximas stacks
 
-1. Stack 16 — exportação;
-2. Stack 17 — gravação por microfone.
+1. Stack 17 — gravação por microfone.
 
 ## Pendências operacionais independentes
 
@@ -60,7 +61,7 @@ O baseline usa SQL portável para preservar paridade entre desenvolvimento/teste
 
 ## Próxima Stack
 
-**Stack 16 — Exportação** é a próxima prioridade.
+Após gate/merge da Stack 16, **Stack 17 — Gravação por microfone** é a próxima prioridade.
 
-**Document Version:** 11.1  
+**Document Version:** 12.0  
 **Status:** Active
