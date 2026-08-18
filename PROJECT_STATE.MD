@@ -6,8 +6,9 @@
 **Última atualização:** 2026-08-18  
 **Stack atual:** Stack 17 — Gravação por microfone  
 **Branch de integração:** `develop`  
-**Branch da Stack 16:** `agent/stack-16-export`  
-**Status esperado após gate/merge:** Stacks 7–16 concluídas; Stack 17 é a próxima prioridade
+**Último merge:** PR #20 — Stack 16 Exportação  
+**Commit de integração:** `e1057146329fdde98acc2b06e3141bd09856b35c`  
+**Status:** Stacks 7–16 concluídas e integradas; Stack 17 é a próxima prioridade
 
 ## Capacidade atual
 
@@ -23,7 +24,7 @@
 - busca textual ownership-aware em título, descrição e transcrição;
 - exportação sob demanda em TXT, Markdown, JSON, DOCX e PDF.
 
-## Stack 16 — Exportação — IMPLEMENTADA
+## Stack 16 — Exportação — CONCLUÍDA
 
 - [x] `ExportService` dedicado;
 - [x] pacote unificado com metadados, participantes, transcrição e análise;
@@ -40,8 +41,8 @@
 - [x] testes de formatos, dados incompletos e ownership;
 - [x] ADR-031;
 - [x] versão 0.12.0;
-- [ ] CI + Quality + Docker verdes;
-- [ ] PR integrado em `develop`.
+- [x] CI + Quality + Docker verdes no PR #20;
+- [x] PR #20 integrado em `develop`.
 
 ## Decisão de evolução
 
@@ -61,7 +62,7 @@ Exports são gerados sob demanda e não persistidos. Isso evita cópias redundan
 
 ## Próxima Stack
 
-Após gate/merge da Stack 16, **Stack 17 — Gravação por microfone** é a próxima prioridade.
+**Stack 17 — Gravação por microfone** é a próxima prioridade.
 
-**Document Version:** 12.0  
+**Document Version:** 12.1  
 **Status:** Active
