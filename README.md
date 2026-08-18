@@ -1,8 +1,8 @@
 # AMIP — AI Meeting Intelligence Platform
 
-O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas, identificar participantes e gerar inteligência estruturada localmente.
+O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniões, transcrever, separar falas, identificar participantes, gerar inteligência estruturada e recuperar esse conhecimento por busca textual.
 
-> **Estado atual:** o fluxo cobre reunião → áudio → transcrição → diarização → participantes → inteligência por LLM, agora com contas, login e isolamento por usuário. A próxima prioridade é a Stack 14, infraestrutura de produção.
+> **Estado atual:** o fluxo cobre reunião → áudio → transcrição → diarização → participantes → inteligência por LLM → busca, com contas, isolamento por usuário e baseline de produção. A próxima prioridade após a Stack 15 é exportação.
 
 ## O que funciona hoje
 
@@ -15,11 +15,11 @@ O AMIP é um monólito modular em Python/FastAPI para receber áudio de reuniõe
 - inteligência estruturada via Ollama + `qwen3:4b` configurável;
 - resumo, action items, decisões, riscos e follow-ups rastreáveis;
 - usuários, cadastro, login e logout;
-- senha com scrypt + salt;
-- sessão opaca persistente/revogável;
-- ownership de reuniões e isolamento de todos os recursos derivados;
-- modo local legado preservado enquanto não houver contas;
-- Docker/Compose, migrations e quality gates.
+- sessão opaca persistente/revogável e ownership;
+- busca em título, descrição e texto transcrito, isolada por usuário;
+- PostgreSQL/Compose de produção, readiness e backups;
+- SQLite preservado para desenvolvimento/testes;
+- migrations e quality gates.
 
 ## Pipeline atual
 
@@ -39,19 +39,23 @@ Participants
 Ollama / Qwen3
   ↓
 Structured meeting intelligence
+  ↓
+Text search
 ```
+
+## Busca
+
+Na interface, acesse `/meetings` e use o campo de busca. Pela API:
+
+```text
+GET /api/search?q=termo&skip=0&limit=20
+```
+
+A busca considera título, descrição e transcrição, devolve contexto do match e respeita o owner da reunião. O baseline é SQL portável; PostgreSQL FTS fica reservado para quando volume e métricas justificarem. Vector database não é requisito desta etapa.
 
 ## Autenticação
 
-Acesse:
-
-```text
-http://127.0.0.1:8000/login
-```
-
-Enquanto nenhuma conta existe, o AMIP mantém o modo local anterior. Ao criar a primeira conta, reuniões legadas sem proprietário são associadas a ela. Depois disso, o workspace e APIs protegidas exigem sessão válida e cada usuário acessa apenas suas próprias reuniões.
-
-A sessão usa cookie `HttpOnly`/`SameSite=Lax`; em staging/produção o cookie também é `Secure`. O banco guarda somente o hash do token de sessão.
+Acesse `http://127.0.0.1:8000/login`. Enquanto nenhuma conta existe, o AMIP mantém o modo local anterior. Depois da primeira conta, APIs protegidas e workspace usam sessão e ownership.
 
 ## LLM local
 
@@ -99,16 +103,4 @@ agent/*   → trabalho por Stack
 - [Arquitetura atual](docs/current/ARCHITECTURE.md)
 - [Banco atual](docs/current/DATABASE.md)
 - [API atual](docs/current/API.md)
-- [Deployment](docs/current/DEPLOYMENT.md)
-- [Backlog](docs/06_BACKLOG.md)
-- [Estado atual](PROJECT_STATE.MD)
-- [Decisões técnicas](TECH_DECISIONS.md)
-- [ADRs](docs/adr/)
-
-## Próxima etapa
-
-**Stack 14 — Infraestrutura de produção:** banco/storage/backups/observabilidade/hardening e deployment production-ready, preservando o monólito modular até existir evidência para outra arquitetura.
-
-## Licença
-
-MIT — consulte [`LICENSE`](LICENSE).
+- [Deploy](docs/current/DEPLOYMENT.md)

@@ -4,11 +4,10 @@
 
 **Projeto:** AI Meeting Intelligence Platform (AMIP)  
 **Última atualização:** 2026-08-17  
-**Stack atual:** Stack 15 — Busca  
+**Stack atual:** Stack 16 — Exportação  
 **Branch de integração:** `develop`  
-**Último merge:** PR #18 — Stack 14 Infraestrutura de produção  
-**Commit de integração:** `d9f7b92584d3ad1038a57e0b9859e753ccd288d7`  
-**Status:** Stacks 7–14 concluídas e integradas; Stack 15 é a próxima prioridade
+**Branch da Stack 15:** `agent/stack-15-search`  
+**Status esperado após gate/merge:** Stacks 7–15 concluídas; Stack 16 é a próxima prioridade
 
 ## Capacidade atual
 
@@ -20,37 +19,35 @@
 - identificação/confirmação de participantes;
 - inteligência estruturada local via Ollama + Qwen3;
 - autenticação, sessões revogáveis e ownership;
-- Docker/Compose para desenvolvimento;
-- baseline de produção com PostgreSQL, migrations one-shot, web, worker e backups;
-- readiness dependente do banco e liveness HTTP;
-- pooling/pre-ping de conexão para banco não-SQLite;
-- runbook de deploy, restore, observabilidade e hardening.
+- baseline de produção com PostgreSQL, migrations, web, worker e backups;
+- busca textual ownership-aware em título, descrição e transcrição;
+- interface e API de busca com snippet contextual.
 
-## Stack 14 — Infraestrutura de produção — CONCLUÍDA
+## Stack 15 — Busca — IMPLEMENTADA
 
-- [x] PostgreSQL 16 como banco de produção;
-- [x] SQLite preservado para desenvolvimento/testes;
-- [x] driver `psycopg`;
-- [x] pool SQLAlchemy configurável e `pool_pre_ping`;
-- [x] `compose.production.yaml` sem exposição pública do PostgreSQL;
-- [x] migrations Alembic executadas antes de web/worker;
-- [x] storage persistente compartilhado entre web/worker;
-- [x] `/health` para liveness;
-- [x] `/ready` validando conectividade com banco;
-- [x] backup periódico de PostgreSQL e storage;
-- [x] retenção configurável;
-- [x] runbook de restore e recomendação de cópia off-host;
-- [x] hardening operacional documentado;
-- [x] ADR-029;
-- [x] versão 0.10.0;
-- [x] CI + Quality + Docker verdes no PR #18;
-- [x] PR #18 integrado em `develop`.
+- [x] `SearchService` dedicado;
+- [x] busca em título e descrição;
+- [x] busca no texto integral das transcrições;
+- [x] isolamento por `owner_id` antes da entrega de resultados;
+- [x] `GET /api/search` com paginação;
+- [x] indicação dos campos que produziram o match;
+- [x] snippet contextual para conteúdo encontrado;
+- [x] campo de busca na interface `/meetings`;
+- [x] SQLite e PostgreSQL suportados sem serviço externo;
+- [x] testes de busca, transcrição e isolamento;
+- [x] ADR-030;
+- [x] versão 0.11.0;
+- [ ] CI + Quality + Docker verdes;
+- [ ] PR integrado em `develop`.
+
+## Decisão de evolução
+
+O baseline usa SQL portável para preservar paridade entre desenvolvimento/testes e produção. PostgreSQL Full Text Search (`tsvector`/GIN) será introduzido quando métricas/volume justificarem. Vector database não será adicionado sem requisito de busca semântica comprovado.
 
 ## Próximas stacks
 
-1. Stack 15 — busca;
-2. Stack 16 — exportação;
-3. Stack 17 — gravação por microfone.
+1. Stack 16 — exportação;
+2. Stack 17 — gravação por microfone.
 
 ## Pendências operacionais independentes
 
@@ -62,7 +59,7 @@
 
 ## Próxima Stack
 
-**Stack 15 — Busca** é a próxima prioridade.
+Após gate/merge da Stack 15, **Stack 16 — Exportação** é a próxima prioridade.
 
-**Document Version:** 10.1  
+**Document Version:** 11.0  
 **Status:** Active
