@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/css/main.css">
 </head>
 <body class="bg-light">
-<nav class="navbar navbar-dark bg-dark"><div class="container"><a class="navbar-brand fw-bold" href="/">AMIP</a><div class="d-flex align-items-center gap-3">{% if current_user %}<span class="navbar-text">{{ current_user.email }}</span><button id="logoutBtn" class="btn btn-sm btn-outline-light">Sair</button>{% else %}<span class="navbar-text">Modo local</span>{% endif %}</div></div></nav>
+<nav class="navbar navbar-dark bg-dark"><div class="container"><a class="navbar-brand fw-bold" href="/">AMIP</a><div class="d-flex align-items-center gap-3"><a class="btn btn-sm btn-outline-light" href="/readiness">Diagnóstico</a>{% if current_user %}<span class="navbar-text">{{ current_user.email }}</span><button id="logoutBtn" class="btn btn-sm btn-outline-light">Sair</button>{% else %}<span class="navbar-text">Modo local</span>{% endif %}</div></div></nav>
 <main class="container py-4">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div><h1 class="h2 mb-1">Reuniões</h1><p class="text-secondary mb-0">Crie reuniões e encontre conteúdo em títulos, descrições e transcrições.</p></div>
@@ -45,7 +45,24 @@
         <p class="text-secondary mb-2">{{ meeting.description or 'Sem descrição.' }}</p><small class="text-muted">Criada em {{ meeting.created_at.strftime('%d/%m/%Y %H:%M') }}</small>
       </div></a></div>
     {% else %}
-      <div class="col-12"><div class="alert alert-info">Nenhuma reunião ainda. Crie a primeira para iniciar o fluxo.</div></div>
+      <div class="col-12">
+        <section class="card shadow-sm border-0">
+          <div class="card-body p-4">
+            <h2 class="h4">Comece sua primeira reunião</h2>
+            <p class="text-secondary">O fluxo do AMIP acontece em três passos principais:</p>
+            <div class="row g-3 mb-4">
+              <div class="col-md-4"><strong>1. Crie a reunião</strong><p class="mb-0 text-secondary">Defina um título e organize o contexto.</p></div>
+              <div class="col-md-4"><strong>2. Adicione o áudio</strong><p class="mb-0 text-secondary">Envie um arquivo ou grave pelo microfone.</p></div>
+              <div class="col-md-4"><strong>3. Gere resultados</strong><p class="mb-0 text-secondary">Transcreva, separe speakers e gere inteligência.</p></div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#newMeeting">Criar primeira reunião</button>
+              <a class="btn btn-outline-secondary" href="/readiness">Verificar ambiente</a>
+            </div>
+            <p class="small text-secondary mt-3 mb-0">Microfone exige localhost ou HTTPS. Diarização e inteligência dependem das capacidades disponíveis no ambiente.</p>
+          </div>
+        </section>
+      </div>
     {% endfor %}
   {% endif %}
   </div>
