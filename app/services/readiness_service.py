@@ -3,7 +3,6 @@
 from importlib.util import find_spec
 from pathlib import Path
 import shutil
-import socket
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -13,6 +12,14 @@ from app.config import settings
 from app.core.capabilities import CapabilityResult, CapabilityStatus
 from app.database.session import engine
 from app.services.worker_heartbeat import WorkerHeartbeat
+
+
+def _module_available(name: str) -> bool:
+    """Return whether an optional dependency can be resolved safely."""
+    try:
+        return find_spec(name) is not None
+    except (ImportError, ModuleNotFoundError, AttributeError):
+        return False
 
 
 class ReadinessService:
@@ -62,7 +69,7 @@ class ReadinessService:
         return self._config("FFPROBE", "Inspeção de áudio", "FFprobe não foi encontrado.", "Instalar FFmpeg/ffprobe.")
 
     def _whisper(self) -> CapabilityResult:
-        if find_spec("faster_whisper") is None:
+        if not _module_available("faster_whisper"):
             return self._config("WHISPER", "Transcrição", "faster-whisper não está instalado.", "Instalar requirements-worker.txt.")
         return self._ready("WHISPER", "Transcrição", f"Whisper disponível; modelo configurado: {settings.WHISPER_MODEL}.")
 
@@ -79,7 +86,7 @@ class ReadinessService:
     def _diarization(self) -> CapabilityResult:
         if not settings.ai.HUGGINGFACE_TOKEN:
             return self._config("DIARIZATION", "Diarização", "Token do Hugging Face não configurado.", "Configurar HUGGINGFACE_TOKEN e aceitar as condições do modelo.")
-        if find_spec("pyannote.audio") is None:
+        if not _module_available("pyannote.audio"):
             return self._config("DIARIZATION", "Diarização", "pyannote.audio não está instalado.", "Instalar requirements-worker.txt.")
         return self._ready("DIARIZATION", "Diarização", f"Pyannote configurado em {settings.PYANNOTE_DEVICE}.")
 
@@ -88,9 +95,7 @@ class ReadinessService:
             return CapabilityResult("LLM", "Inteligência por IA", CapabilityStatus.NOT_VERIFIED, f"Provider configurado: {settings.ai.LLM_PROVIDER}.", "Validar provider configurado.", True)
         url = settings.OLLAMA_URL.rstrip("/") + "/api/tags"
         try:
-            host = settings.OLLAMA_URL.split("://", 1)[-1].split(":", 1)[0]
-            socket.gethostbyname(host)
-            with urlopen(url, timeout=2) as response:  # nosec B310 - URL comes from operator configuration
+            with urlopen(url, timeout=2) as response:  # nosec B310 - operator-controlled HTTP(S) endpoint
                 body = response.read().decode("utf-8", errors="replace")
             if settings.OLLAMA_MODEL not in body:
                 return self._config("LLM", "Inteligência por IA", "Ollama respondeu, mas o modelo configurado não foi encontrado.", f"Baixar o modelo {settings.OLLAMA_MODEL}.")
@@ -113,7 +118,7 @@ class ReadinessService:
             return self._unavailable("STORAGE", "Armazenamento", "Storage sem permissão de escrita.", "Corrigir permissões do STORAGE_PATH.")
 
     def _export(self) -> CapabilityResult:
-        missing = [name for name in ("docx", "reportlab") if find_spec(name) is None]
+        missing = [name for name in ("docx", "reportlab") if not _module_available(name)]
         if missing:
             return self._config("EXPORT", "Exportação", "Dependências de exportação incompletas.", "Instalar dependências do requirements.txt.")
         return self._ready("EXPORT", "Exportação", "PDF e DOCX disponíveis.")
