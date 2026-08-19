@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from app.core.enums import ProcessingStatus
 from app.models.audio import Audio
 from app.models.meeting import Meeting
@@ -76,6 +78,28 @@ def test_pyannote_adapter_maps_exclusive_diarization():
         "SPEAKER_00",
         "SPEAKER_01",
     ]
+
+
+def test_pyannote_adapter_rejects_missing_pipeline():
+    def factory(_model_name, **_kwargs):
+        return None
+
+    with pytest.raises(RuntimeError, match="pipeline could not be loaded"):
+        PyannoteSpeakerIdentifier(token="token", pipeline_factory=factory)
+
+
+def test_pyannote_adapter_rejects_result_without_annotation():
+    class FakePipeline:
+        def __call__(self, _path, **_kwargs):
+            return SimpleNamespace()
+
+    provider = PyannoteSpeakerIdentifier(
+        token="token",
+        pipeline_factory=lambda _model_name, **_kwargs: FakePipeline(),
+    )
+
+    with pytest.raises(RuntimeError, match="does not contain a diarization annotation"):
+        provider.diarize("meeting.wav")
 
 
 def test_diarization_persists_speakers_and_reconciles_text(db_session):
