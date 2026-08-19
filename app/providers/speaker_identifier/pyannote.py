@@ -32,7 +32,12 @@ class PyannoteSpeakerIdentifier(ISpeakerIdentifier):
         kwargs: dict[str, Any] = {}
         if token:
             kwargs["token"] = token
-        self.pipeline = pipeline_factory(model_name, **kwargs)
+        pipeline = pipeline_factory(model_name, **kwargs)
+        if pipeline is None:
+            raise RuntimeError(
+                "pyannote pipeline could not be loaded; verify model access and HUGGINGFACE_TOKEN"
+            )
+        self.pipeline: Any = pipeline
         self.device = device
         if device != "cpu":  # pragma: no cover - depends on optional torch runtime
             try:
@@ -51,9 +56,14 @@ class PyannoteSpeakerIdentifier(ISpeakerIdentifier):
         if num_speakers is not None:
             kwargs["num_speakers"] = num_speakers
         output = self.pipeline(audio_path, **kwargs)
+        if output is None:
+            raise RuntimeError("pyannote returned no diarization result")
+
         annotation = getattr(output, "exclusive_speaker_diarization", None)
         if annotation is None:
-            annotation = getattr(output, "speaker_diarization", output)
+            annotation = getattr(output, "speaker_diarization", None)
+        if annotation is None:
+            raise RuntimeError("pyannote result does not contain a diarization annotation")
 
         segments: list[SpeakerSegment] = []
         labels: set[str] = set()

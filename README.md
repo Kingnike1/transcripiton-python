@@ -85,12 +85,37 @@ OLLAMA_MODEL=qwen3:4b
 
 A análise não exige API paga. O domínio não depende diretamente de Ollama e pode receber adapters futuros.
 
+## Diarização real
+
+O worker usa `pyannote.audio`. Configure em `.env`:
+
+```env
+HUGGINGFACE_TOKEN=seu-token-de-leitura
+PYANNOTE_MODEL=pyannote/speaker-diarization-community-1
+PYANNOTE_DEVICE=cpu
+```
+
+O token deve permanecer fora do Git. Antes do smoke test real, valide os pré-requisitos sem imprimir o segredo:
+
+```bash
+python scripts/check_diarization.py
+```
+
 ## Execução local com Docker
 
 Configure `.env` e execute:
 
 ```bash
+docker compose config --quiet
 docker compose up --build
+```
+
+Para o baseline de produção:
+
+```bash
+cp .env.production.example .env.production
+docker compose -f compose.production.yaml config --quiet
+docker compose -f compose.production.yaml up --build -d
 ```
 
 Para diarização real, configure `HUGGINGFACE_TOKEN`. Para análise real, instale/inicie Ollama na máquina de uso e garanta que o worker alcance `OLLAMA_URL`.

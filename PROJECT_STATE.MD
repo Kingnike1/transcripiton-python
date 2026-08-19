@@ -6,65 +6,78 @@
 **Última atualização:** 2026-08-18  
 **Fase atual:** Validação operacional pós-Stack 17  
 **Branch de integração:** `develop`  
-**Último merge:** PR #21 — Stack 17 Gravação por microfone  
-**Commit de integração:** `cf1ae3e81fd81e0d492dc4bda3386070cb9e93b2`  
-**Status:** Stacks 7–17 concluídas e integradas; ciclo planejado de Stacks concluído
+**Branch de correções:** `agent/post-manus-fixes`  
+**Último merge funcional:** PR #21 — Stack 17 Gravação por microfone  
+**Status:** Stacks 7–17 concluídas; correções pós-Manus em validação
+
+## Resultado da primeira validação Manus
+
+- 30 casos consolidados;
+- 23 PASS;
+- 1 FAIL: gate mypy;
+- 6 BLOCKED por limitações/dependências do ambiente;
+- sem bug CRITICAL ou HIGH confirmado nos fluxos efetivamente executados.
+
+## Correções pós-Manus nesta branch
+
+### 1. Gate mypy
+
+- [x] stubs internos de NumPy/Torch/Pyannote deixam de fazer parte do contrato de type-check do AMIP;
+- [x] adapters do próprio projeto continuam sendo verificados;
+- [x] nulabilidade real do adapter Pyannote corrigida;
+- [x] retorno nulo de pipeline/annotation gera erro operacional explícito;
+- [ ] confirmar gate mypy verde no GitHub Actions.
+
+### 2. Documentação Docker
+
+- [x] `docs/current/DEPLOYMENT.md` sincronizado com a infraestrutura real;
+- [x] Dockerfile oficial documentado;
+- [x] `compose.yaml` local documentado;
+- [x] `compose.production.yaml` documentado;
+- [x] `.env.production.example` criado;
+- [x] README sincronizado;
+- [ ] confirmar gate documental/CI verde.
+
+### 4. Hugging Face + Pyannote
+
+- [x] configuração existente de `HUGGINGFACE_TOKEN`, `PYANNOTE_MODEL` e `PYANNOTE_DEVICE` documentada;
+- [x] `scripts/check_diarization.py` criado para preflight sem imprimir secrets;
+- [x] adapter Pyannote endurecido contra pipeline/resultado nulo;
+- [x] testes adicionais do adapter;
+- [ ] inserir token real de leitura no `.env`/`.env.production` da máquina de uso;
+- [ ] aceitar condições do modelo configurado na conta Hugging Face quando exigido;
+- [ ] executar `python scripts/check_diarization.py` na máquina real;
+- [ ] executar primeira diarização real e confirmar download/cache do modelo.
 
 ## Capacidade atual
 
 - CRUD e interface de reuniões;
 - upload/armazenamento seguro de áudio;
 - gravação de reunião pelo microfone do navegador;
-- preview local antes do envio;
 - jobs duráveis e worker separado;
 - transcrição local com `faster-whisper`;
-- diarização local com `pyannote.audio` quando configurado;
+- diarização local com `pyannote.audio` quando token/modelo estão configurados;
 - identificação/confirmação de participantes;
 - inteligência estruturada local via Ollama + Qwen3;
 - autenticação, sessões revogáveis e ownership;
-- baseline de produção com PostgreSQL, migrations, web, worker e backups;
-- busca textual ownership-aware em título, descrição e transcrição;
-- exportação sob demanda em TXT, Markdown, JSON, DOCX e PDF.
+- baseline de produção com PostgreSQL, migrations, Docker, web, worker e backups;
+- busca textual ownership-aware;
+- exportação TXT, Markdown, JSON, DOCX e PDF.
 
-## Stack 17 — Gravação por microfone — CONCLUÍDA
+## Pendências operacionais após estas correções
 
-- [x] captura via `getUserMedia`;
-- [x] gravação via `MediaRecorder`;
-- [x] seleção de formato compatível pelo navegador;
-- [x] suporte a WebM/Opus, WebM, Ogg/Opus e MP4 quando disponíveis;
-- [x] contador de duração;
-- [x] parar e descartar gravação;
-- [x] preview local antes do upload;
-- [x] áudio não é enviado sem confirmação do usuário;
-- [x] reaproveitamento do endpoint seguro de upload existente;
-- [x] normalização segura de MIME types com parâmetros de codec;
-- [x] validação de assinatura/tamanho/ffprobe preservada;
-- [x] encerramento das tracks do microfone ao parar, descartar ou sair;
-- [x] tratamento de permissão negada e navegador incompatível;
-- [x] requisito explícito de HTTPS ou localhost;
-- [x] correção da corrida de descarte durante gravação;
-- [x] testes de integração com o pipeline existente;
-- [x] ADR-032;
-- [x] versão 0.13.0;
-- [x] CI + Quality + Docker verdes no PR #21;
-- [x] PR #21 integrado em `develop`.
-
-## Decisão de arquitetura
-
-A gravação não cria um segundo pipeline de mídia. O navegador produz um arquivo temporário local e, somente após confirmação do usuário, envia esse arquivo ao mesmo pipeline de upload existente. Isso mantém storage, validação, ownership, inspeção e transições de estado em um único caminho.
-
-## Próxima fase
-
-Não há uma Stack 18 planejada no backlog atual. O próximo ciclo deve começar por validação operacional end-to-end e priorização da próxima fase do produto com base no que for observado em uso real.
-
-## Pendências operacionais
-
-- instalar Ollama e baixar `qwen3:4b` na máquina de uso para smoke test real;
-- smoke test end-to-end com áudio real/modelos baixados;
-- smoke test da gravação em navegador real via HTTPS/localhost;
-- configurar destino off-host para backups no ambiente de produção escolhido;
-- configurar proxy/TLS e monitor externo no ambiente de produção escolhido;
+- fornecer/configurar o `HUGGINGFACE_TOKEN` real na máquina de uso;
+- instalar Ollama e baixar `qwen3:4b` para smoke test real;
+- repetir diarização, participantes e LLM com dependências reais;
+- smoke test da gravação em navegador com microfone real via HTTPS/localhost;
+- validar Docker/Compose em host com Docker disponível;
+- configurar destino off-host para backups;
+- configurar proxy/TLS e monitor externo;
 - branch protection administrativa da `main` quando permissões permitirem.
 
-**Document Version:** 13.1  
+## Próximo gate
+
+Abrir PR das correções contra `develop` e integrar somente com CI, Quality e Docker verdes.
+
+**Document Version:** 13.2  
 **Status:** Active

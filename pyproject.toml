@@ -15,3 +15,18 @@ warn_redundant_casts = true
 no_implicit_optional = true
 pretty = true
 exclude = ["^migrations/"]
+
+# Heavy ML libraries ship large, fast-moving type surfaces that are not part
+# of AMIP's static-analysis contract. Their adapters are type-checked here;
+# third-party internals are deliberately skipped so Python 3.11 and 3.12
+# environments produce the same project-level mypy result.
+[[tool.mypy.overrides]]
+module = [
+    "numpy",
+    "numpy.*",
+    "torch",
+    "torch.*",
+    "pyannote",
+    "pyannote.*",
+]
+follow_imports = "skip"
