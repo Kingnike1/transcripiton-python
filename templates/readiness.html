@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prontidão do ambiente · AMIP</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <style>
+    .readiness-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1rem; }
+    .capability-card { border:1px solid #d7dce2; border-radius:12px; padding:1rem; background:#fff; }
+    .capability-head { display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+    .capability-status { font-size:.82rem; font-weight:700; padding:.3rem .55rem; border-radius:999px; border:1px solid currentColor; }
+    .capability-message { margin:.75rem 0 .25rem; }
+    .capability-action { margin:.35rem 0 0; font-size:.92rem; }
+    .summary-card { margin:1rem 0 1.5rem; padding:1rem; border-radius:12px; background:#f5f7fa; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <p><a href="/meetings">← Voltar para reuniões</a></p>
+      <h1>Prontidão do AMIP</h1>
+      <p>Veja quais recursos estão disponíveis neste ambiente e o que precisa de configuração.</p>
+    </header>
+
+    <section class="summary-card" aria-live="polite">
+      <strong>{{ readiness.summary.ready }} de {{ readiness.summary.total }} capacidades prontas</strong>
+      {% if readiness.status == "ready" %}
+        <p>O ambiente está pronto para todas as capacidades verificáveis.</p>
+      {% else %}
+        <p>Há capacidades que exigem atenção. Os detalhes abaixo não exibem tokens, senhas ou outros segredos.</p>
+      {% endif %}
+    </section>
+
+    <section class="readiness-grid" aria-label="Capacidades do ambiente">
+      {% for capability in readiness.capabilities %}
+      <article class="capability-card">
+        <div class="capability-head">
+          <h2>{{ capability.label }}</h2>
+          <span class="capability-status">
+            {% if capability.status == "READY" %}Pronto
+            {% elif capability.status == "CONFIGURATION_REQUIRED" %}Configuração necessária
+            {% elif capability.status == "UNAVAILABLE" %}Indisponível
+            {% else %}Não verificado{% endif %}
+          </span>
+        </div>
+        <p class="capability-message">{{ capability.message }}</p>
+        {% if capability.action %}
+          <p class="capability-action"><strong>Próxima ação:</strong> {{ capability.action }}</p>
+        {% endif %}
+        {% if capability.operator_action %}
+          <p class="capability-action">Esta ação depende do administrador do ambiente.</p>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </section>
+  </main>
+</body>
+</html>
