@@ -18,6 +18,7 @@ from app.api.exports import router as exports_router
 from app.api.jobs import router as jobs_router
 from app.api.meetings import router as meetings_router
 from app.api.participants import router as participants_router
+from app.api.readiness import router as readiness_router
 from app.api.search import router as search_router
 from app.api.transcriptions import router as transcriptions_router
 from app.config import settings
@@ -41,7 +42,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="AI Meeting Intelligence Platform - Transcribe, analyze, and archive meetings",
-    version="0.13.0",
+    version="0.14.0",
     lifespan=lifespan,
 )
 
@@ -59,6 +60,7 @@ app.include_router(transcriptions_router)
 app.include_router(diarization_router)
 app.include_router(participants_router)
 app.include_router(analysis_router)
+app.include_router(readiness_router)
 app.include_router(web_router)
 
 
