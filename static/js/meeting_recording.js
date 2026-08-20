@@ -2,7 +2,6 @@
   const root = document.querySelector('main[data-meeting-id]');
   const area = document.getElementById('microphoneRecorder');
   if (!root || !area) return;
-
   const meetingId = Number(root.dataset.meetingId);
   const startBtn = document.getElementById('recordStartBtn');
   const stopBtn = document.getElementById('recordStopBtn');
@@ -11,200 +10,29 @@
   const status = document.getElementById('recordStatus');
   const timer = document.getElementById('recordTimer');
   const preview = document.getElementById('recordPreview');
+  let recorder=null,stream=null,chunks=[],recordedBlob=null,recordedMimeType='',startedAt=null,timerId=null,previewUrl=null,discardRequested=false;
+  function setStatus(message,kind='secondary'){status.className=`small text-${kind}`;status.textContent=message;}
+  function formatDuration(ms){const totalSeconds=Math.floor(ms/1000);return `${String(Math.floor(totalSeconds/60)).padStart(2,'0')}:${String(totalSeconds%60).padStart(2,'0')}`;}
+  function stopTracks(){if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;}
+  function stopTimer(){if(timerId)window.clearInterval(timerId);timerId=null;}
+  function resetPreview(){if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;preview.removeAttribute('src');preview.classList.add('d-none');recordedBlob=null;recordedMimeType='';chunks=[];}
+  function resetControls(){startBtn.classList.remove('d-none');startBtn.disabled=false;stopBtn.classList.add('d-none');stopBtn.disabled=false;uploadBtn.classList.add('d-none');uploadBtn.disabled=false;discardBtn.classList.add('d-none');discardBtn.disabled=false;timer.textContent='00:00';}
+  function extensionForMime(mime){const base=mime.split(';',1)[0].toLowerCase();if(base==='audio/ogg'||base==='application/ogg')return'ogg';if(base==='audio/mp4')return'm4a';return'webm';}
+  function preferredMimeType(){return['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'].find(type=>MediaRecorder.isTypeSupported(type))||'';}
+  async function startRecording(){resetPreview();discardRequested=false;if(!window.isSecureContext){setStatus('O microfone exige HTTPS ou localhost.','danger');return;}if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){setStatus('Este navegador não oferece gravação de microfone compatível.','danger');return;}try{stream=await navigator.mediaDevices.getUserMedia({audio:true});const mimeType=preferredMimeType();recorder=mimeType?new MediaRecorder(stream,{mimeType}):new MediaRecorder(stream);recordedMimeType=recorder.mimeType||mimeType||'audio/webm';chunks=[];recorder.addEventListener('dataavailable',event=>{if(event.data&&event.data.size>0)chunks.push(event.data);});recorder.addEventListener('stop',()=>{stopTracks();stopTimer();if(discardRequested){resetPreview();resetControls();recorder=null;discardRequested=false;setStatus('Nenhuma gravação em andamento.');return;}recordedBlob=new Blob(chunks,{type:recordedMimeType});if(!recordedBlob.size){resetControls();discardBtn.classList.remove('d-none');setStatus('Nenhum áudio foi capturado. Tente novamente.','danger');return;}previewUrl=URL.createObjectURL(recordedBlob);preview.src=previewUrl;preview.classList.remove('d-none');uploadBtn.classList.remove('d-none');discardBtn.classList.remove('d-none');startBtn.classList.add('d-none');stopBtn.classList.add('d-none');stopBtn.disabled=false;setStatus(`Gravação pronta (${(recordedBlob.size/1024/1024).toFixed(2)} MB). Revise antes de enviar.`,'success');});recorder.start(1000);startedAt=Date.now();timer.textContent='00:00';timerId=window.setInterval(()=>{timer.textContent=formatDuration(Date.now()-startedAt);},500);startBtn.classList.add('d-none');uploadBtn.classList.add('d-none');discardBtn.classList.remove('d-none');stopBtn.classList.remove('d-none');setStatus('Gravando. O áudio ainda está somente neste navegador.','danger');}catch(error){stopTracks();resetControls();const denied=error&&(error.name==='NotAllowedError'||error.name==='SecurityError');setStatus(denied?'Permissão de microfone negada pelo navegador.':'Não foi possível iniciar o microfone.','danger');}}
+  function stopRecording(){if(recorder&&recorder.state!=='inactive')recorder.stop();stopBtn.disabled=true;setStatus('Finalizando gravação...');}
+  function discardRecording(){if(recorder&&recorder.state!=='inactive'){discardRequested=true;recorder.stop();stopTracks();stopTimer();setStatus('Descartando gravação...');return;}resetPreview();recorder=null;resetControls();setStatus('Nenhuma gravação em andamento.');}
+  async function uploadRecording(){if(!recordedBlob)return;uploadBtn.disabled=true;discardBtn.disabled=true;setStatus('Enviando a gravação pelo pipeline seguro de áudio...','primary');const extension=extensionForMime(recordedMimeType);const filename=`recording-${new Date().toISOString().replace(/[:.]/g,'-')}.${extension}`;const file=new File([recordedBlob],filename,{type:recordedMimeType});const body=new FormData();body.append('file',file);try{const response=await fetch(`/api/meetings/${meetingId}/audio`,{method:'POST',body});const data=await response.json();if(!response.ok){setStatus(typeof data.detail==='string'?data.detail:'Falha ao enviar a gravação.','danger');uploadBtn.disabled=false;discardBtn.disabled=false;return;}setStatus('Gravação enviada. Preparando a reunião para transcrição...','success');window.setTimeout(()=>window.location.reload(),500);}catch(_error){setStatus('Falha de rede ao enviar a gravação.','danger');uploadBtn.disabled=false;discardBtn.disabled=false;}}
+  startBtn.addEventListener('click',startRecording);stopBtn.addEventListener('click',stopRecording);discardBtn.addEventListener('click',discardRecording);uploadBtn.addEventListener('click',uploadRecording);window.addEventListener('beforeunload',stopTracks);
+})();
 
-  let recorder = null;
-  let stream = null;
-  let chunks = [];
-  let recordedBlob = null;
-  let recordedMimeType = '';
-  let startedAt = null;
-  let timerId = null;
-  let previewUrl = null;
-  let discardRequested = false;
-
-  function setStatus(message, kind = 'secondary') {
-    status.className = `small text-${kind}`;
-    status.textContent = message;
-  }
-
-  function formatDuration(ms) {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
-    const seconds = String(totalSeconds % 60).padStart(2, '0');
-    return `${minutes}:${seconds}`;
-  }
-
-  function stopTracks() {
-    if (stream) stream.getTracks().forEach(track => track.stop());
-    stream = null;
-  }
-
-  function stopTimer() {
-    if (timerId) window.clearInterval(timerId);
-    timerId = null;
-  }
-
-  function resetPreview() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = null;
-    preview.removeAttribute('src');
-    preview.classList.add('d-none');
-    recordedBlob = null;
-    recordedMimeType = '';
-    chunks = [];
-  }
-
-  function resetControls() {
-    startBtn.classList.remove('d-none');
-    startBtn.disabled = false;
-    stopBtn.classList.add('d-none');
-    stopBtn.disabled = false;
-    uploadBtn.classList.add('d-none');
-    uploadBtn.disabled = false;
-    discardBtn.classList.add('d-none');
-    discardBtn.disabled = false;
-    timer.textContent = '00:00';
-  }
-
-  function extensionForMime(mime) {
-    const base = mime.split(';', 1)[0].toLowerCase();
-    if (base === 'audio/ogg' || base === 'application/ogg') return 'ogg';
-    if (base === 'audio/mp4') return 'm4a';
-    return 'webm';
-  }
-
-  function preferredMimeType() {
-    const candidates = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/ogg;codecs=opus',
-      'audio/mp4',
-    ];
-    return candidates.find(type => MediaRecorder.isTypeSupported(type)) || '';
-  }
-
-  async function startRecording() {
-    resetPreview();
-    discardRequested = false;
-    if (!window.isSecureContext) {
-      setStatus('O microfone exige HTTPS ou localhost.', 'danger');
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setStatus('Este navegador não oferece gravação de microfone compatível.', 'danger');
-      return;
-    }
-
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({audio: true});
-      const mimeType = preferredMimeType();
-      recorder = mimeType ? new MediaRecorder(stream, {mimeType}) : new MediaRecorder(stream);
-      recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
-      chunks = [];
-      recorder.addEventListener('dataavailable', event => {
-        if (event.data && event.data.size > 0) chunks.push(event.data);
-      });
-      recorder.addEventListener('stop', () => {
-        stopTracks();
-        stopTimer();
-        if (discardRequested) {
-          resetPreview();
-          resetControls();
-          recorder = null;
-          discardRequested = false;
-          setStatus('Nenhuma gravação em andamento.', 'secondary');
-          return;
-        }
-        recordedBlob = new Blob(chunks, {type: recordedMimeType});
-        if (!recordedBlob.size) {
-          resetControls();
-          discardBtn.classList.remove('d-none');
-          setStatus('Nenhum áudio foi capturado. Tente novamente.', 'danger');
-          return;
-        }
-        previewUrl = URL.createObjectURL(recordedBlob);
-        preview.src = previewUrl;
-        preview.classList.remove('d-none');
-        uploadBtn.classList.remove('d-none');
-        discardBtn.classList.remove('d-none');
-        startBtn.classList.add('d-none');
-        stopBtn.classList.add('d-none');
-        stopBtn.disabled = false;
-        setStatus(`Gravação pronta (${(recordedBlob.size / 1024 / 1024).toFixed(2)} MB). Revise antes de enviar.`, 'success');
-      });
-      recorder.start(1000);
-      startedAt = Date.now();
-      timer.textContent = '00:00';
-      timerId = window.setInterval(() => {
-        timer.textContent = formatDuration(Date.now() - startedAt);
-      }, 500);
-      startBtn.classList.add('d-none');
-      uploadBtn.classList.add('d-none');
-      discardBtn.classList.remove('d-none');
-      stopBtn.classList.remove('d-none');
-      stopBtn.disabled = false;
-      setStatus('Gravando. O áudio ainda está somente neste navegador.', 'danger');
-    } catch (error) {
-      stopTracks();
-      resetControls();
-      const denied = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
-      setStatus(denied ? 'Permissão de microfone negada pelo navegador.' : 'Não foi possível iniciar o microfone.', 'danger');
-    }
-  }
-
-  function stopRecording() {
-    if (recorder && recorder.state !== 'inactive') recorder.stop();
-    stopBtn.disabled = true;
-    setStatus('Finalizando gravação...', 'secondary');
-  }
-
-  function discardRecording() {
-    if (recorder && recorder.state !== 'inactive') {
-      discardRequested = true;
-      recorder.stop();
-      stopTracks();
-      stopTimer();
-      setStatus('Descartando gravação...', 'secondary');
-      return;
-    }
-    resetPreview();
-    recorder = null;
-    resetControls();
-    setStatus('Nenhuma gravação em andamento.', 'secondary');
-  }
-
-  async function uploadRecording() {
-    if (!recordedBlob) return;
-    uploadBtn.disabled = true;
-    discardBtn.disabled = true;
-    setStatus('Enviando a gravação pelo pipeline seguro de áudio...', 'primary');
-    const extension = extensionForMime(recordedMimeType);
-    const filename = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
-    const file = new File([recordedBlob], filename, {type: recordedMimeType});
-    const body = new FormData();
-    body.append('file', file);
-    try {
-      const response = await fetch(`/api/meetings/${meetingId}/audio`, {method: 'POST', body});
-      const data = await response.json();
-      if (!response.ok) {
-        const detail = typeof data.detail === 'string' ? data.detail : 'Falha ao enviar a gravação.';
-        setStatus(detail, 'danger');
-        uploadBtn.disabled = false;
-        discardBtn.disabled = false;
-        return;
-      }
-      setStatus('Gravação enviada. Preparando a reunião para transcrição...', 'success');
-      window.setTimeout(() => window.location.reload(), 500);
-    } catch (_error) {
-      setStatus('Falha de rede ao enviar a gravação.', 'danger');
-      uploadBtn.disabled = false;
-      discardBtn.disabled = false;
-    }
-  }
-
-  startBtn.addEventListener('click', startRecording);
-  stopBtn.addEventListener('click', stopRecording);
-  discardBtn.addEventListener('click', discardRecording);
-  uploadBtn.addEventListener('click', uploadRecording);
-  window.addEventListener('beforeunload', stopTracks);
+/* Sprint 2: job lifecycle UX. Backend remains the source of truth. */
+(() => {
+  const root=document.querySelector('main[data-meeting-id]');
+  const jobArea=document.getElementById('jobArea');
+  if(!root||!jobArea)return;
+  const esc=value=>{const node=document.createElement('div');node.textContent=value??'';return node.innerHTML;};
+  const statusClass={COMPLETED:'success',RUNNING:'primary',FAILED:'danger',BLOCKED:'warning',RETRYING:'info',PENDING:'secondary',CANCELLED:'secondary'};
+  window.renderJob=function(j){const effective=j.effective_status||j.status;const kind=statusClass[effective]||'secondary';const progress=Math.max(0,Math.min(100,Number(j.progress)||0));const attempt=j.max_attempts?`Tentativa ${j.attempt||0} de ${j.max_attempts}`:'';const age=j.seconds_since_update==null?'':`Última atualização há ${j.seconds_since_update}s`;const diagnosis=j.blocked_reason||j.error_message||'';jobArea.innerHTML=`<div class="border rounded p-3" data-job-id="${esc(j.id)}"><div class="d-flex flex-wrap justify-content-between gap-2"><div><strong>${esc(j.job_type)}</strong><div><span class="badge text-bg-${kind}">${esc(j.status_label||effective)}</span></div></div><strong>${progress}%</strong></div><div class="progress mt-3" role="progressbar" aria-label="Progresso do processamento" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:${progress}%"></div></div><div class="small text-secondary mt-2">${esc(attempt)}${attempt&&age?' • ':''}${esc(age)}</div>${diagnosis?`<div class="alert alert-${effective==='BLOCKED'?'warning':'danger'} py-2 mt-2 mb-2">${esc(diagnosis)}</div>`:''}${j.next_action?`<p class="small mb-2"><strong>Próxima ação:</strong> ${esc(j.next_action)}</p>`:''}<div class="d-flex gap-2">${j.can_retry?'<button type="button" class="btn btn-sm btn-outline-primary job-retry">Tentar novamente</button>':''}${j.can_cancel?'<button type="button" class="btn btn-sm btn-outline-secondary job-cancel">Cancelar</button>':''}</div></div>`;};
+  jobArea.addEventListener('click',async event=>{const card=event.target.closest('[data-job-id]');if(!card)return;const jobId=card.dataset.jobId;if(event.target.closest('.job-retry')){const response=await fetch(`/api/jobs/${jobId}/retry`,{method:'POST'});if(response.ok)window.renderJob(await response.json());}if(event.target.closest('.job-cancel')){const response=await fetch(`/api/jobs/${jobId}`,{method:'DELETE'});if(response.ok){const refreshed=await fetch(`/api/jobs/${jobId}`);if(refreshed.ok)window.renderJob(await refreshed.json());}}});
 })();
