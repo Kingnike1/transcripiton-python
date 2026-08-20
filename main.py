@@ -17,6 +17,7 @@ from app.api.diarization import router as diarization_router
 from app.api.exports import router as exports_router
 from app.api.jobs import router as jobs_router
 from app.api.meetings import router as meetings_router
+from app.api.onboarding import router as onboarding_router
 from app.api.participants import router as participants_router
 from app.api.readiness import router as readiness_router
 from app.api.search import router as search_router
@@ -61,6 +62,7 @@ app.include_router(diarization_router)
 app.include_router(participants_router)
 app.include_router(analysis_router)
 app.include_router(readiness_router)
+app.include_router(onboarding_router)
 app.include_router(web_router)
 
 
