@@ -8,6 +8,12 @@ class OnboardingService:
 
     _CORE_CAPABILITIES = {"DATABASE", "WORKER", "FFPROBE", "WHISPER", "STORAGE"}
     _OPTIONAL_CAPABILITIES = {"MICROPHONE", "DIARIZATION", "LLM", "EXPORT"}
+    _SAFE_REPLACEMENTS = {
+        "HUGGINGFACE_TOKEN": "credencial do Hugging Face",
+        "OPENAI_API_KEY": "credencial da OpenAI",
+        "SECRET_KEY": "segredo da aplicação",
+        "POSTGRES_PASSWORD": "credencial do banco",
+    }
 
     def build(self, meeting_count: int, readiness: dict[str, Any]) -> dict[str, Any]:
         capabilities = {
@@ -80,12 +86,21 @@ class OnboardingService:
             "optional_issues": [self._safe_issue(item) for item in optional_issues],
         }
 
-    @staticmethod
-    def _safe_issue(item: dict[str, Any]) -> dict[str, Any]:
+    @classmethod
+    def _safe_text(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        safe = value
+        for raw, replacement in cls._SAFE_REPLACEMENTS.items():
+            safe = safe.replace(raw, replacement)
+        return safe
+
+    @classmethod
+    def _safe_issue(cls, item: dict[str, Any]) -> dict[str, Any]:
         return {
             "key": item.get("key"),
-            "label": item.get("label"),
+            "label": cls._safe_text(item.get("label")),
             "status": item.get("status"),
-            "message": item.get("message"),
-            "action": item.get("action"),
+            "message": cls._safe_text(item.get("message")),
+            "action": cls._safe_text(item.get("action")),
         }
