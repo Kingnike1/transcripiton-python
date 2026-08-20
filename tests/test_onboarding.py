@@ -35,7 +35,7 @@ def test_core_environment_issue_blocks_processing_guidance() -> None:
     assert result["environment_ready"] is False
     assert result["steps"][0]["status"] == "action_required"
     assert result["core_issues"][0]["key"] == "WORKER"
-    assert "attention" in result["headline"].lower()
+    assert "atenção" in result["headline"].lower()
 
 
 def test_existing_workspace_moves_audio_to_next_step() -> None:
