@@ -22,6 +22,14 @@ class ProcessingJobResponse(BaseModel):
     created_at: datetime
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
+    effective_status: Optional[str] = None
+    status_label: Optional[str] = None
+    next_action: Optional[str] = None
+    blocked_reason: Optional[str] = None
+    seconds_since_update: Optional[int] = None
+    stalled: bool = False
+    can_cancel: bool = False
+    can_retry: bool = False
 
 
 class ProcessingJobListResponse(BaseModel):
