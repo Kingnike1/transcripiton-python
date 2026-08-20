@@ -47,4 +47,6 @@ Não necessária: nenhuma coluna ou constraint de banco foi alterada.
 
 ## CI do ciclo UX
 
-Os workflows originalmente escutavam pull requests apenas contra `main` e `develop`. Como o ciclo de UX usa `integration/ux-roadmap` como base intermediária, CI, Quality e Docker não eram disparados para o PR da Sprint 2. A configuração da branch de integração foi corrigida para incluir `integration/ux-roadmap`; este commit também força um novo evento de sincronização do PR para executar os gates no fluxo correto.
+Os workflows originalmente escutavam pull requests apenas contra `main` e `develop`. Como o ciclo de UX usa `integration/ux-roadmap` como base intermediária, CI, Quality e Docker não eram disparados para o PR da Sprint 2. A configuração da branch de integração foi corrigida para incluir `integration/ux-roadmap`.
+
+Após a correção da branch de integração, este commit de sincronização foi adicionado à feature para disparar novamente os quality gates no PR #24.
