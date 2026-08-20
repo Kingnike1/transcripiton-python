@@ -12,24 +12,16 @@ from app.config import settings
 from app.core.enums import ProcessingStatus
 from app.core.time import utc_now
 from app.database.unit_of_work import SqlAlchemyUnitOfWork
-from app.exceptions.audio import (
-    AudioAlreadyExistsError,
-    AudioUploadError,
-    MeetingNotFoundError,
-)
+from app.exceptions.audio import AudioAlreadyExistsError, AudioUploadError, MeetingNotFoundError
 from app.models.audio import Audio
 from app.services.audio_inspector import AudioInspector, FFprobeAudioInspector
-from app.services.audio_upload_stager import (
-    AudioSizeLimitExceeded,
-    AudioUploadStager,
-    StagedAudioUpload,
-)
+from app.services.audio_upload_stager import AudioSizeLimitExceeded, AudioUploadStager, StagedAudioUpload
 from app.services.audio_validator import AudioValidator
 from app.services.storage_service import StorageService
 
 
 class AudioService:
-    """Coordinate staged upload, validation, storage, and persistence."""
+    """Coordinate staged upload, validation, storage, replacement, and persistence."""
 
     ACTIVE_AUDIO_CONSTRAINT = "uq_audios_active_meeting"
 
@@ -52,14 +44,7 @@ class AudioService:
         )
         self.stager = stager or AudioUploadStager(self.storage)
 
-    def upload(
-        self,
-        meeting_id: int,
-        filename: str,
-        content_type: str,
-        content: bytes,
-    ) -> Audio:
-        """Backward-compatible adapter that routes bytes through streaming logic."""
+    def upload(self, meeting_id: int, filename: str, content_type: str, content: bytes) -> Audio:
         return self.upload_stream(
             meeting_id=meeting_id,
             filename=filename,
@@ -67,42 +52,65 @@ class AudioService:
             stream=BytesIO(content),
         )
 
+    def upload_policy(self, meeting_id: int) -> dict[str, object]:
+        meeting = self.meetings.get_by_id(meeting_id)
+        if meeting is None:
+            raise MeetingNotFoundError(f"Meeting {meeting_id} was not found")
+        existing = self.audios.get_by_meeting_id(meeting_id)
+        has_processing_history = bool(self.uow.processing_jobs.get_by_meeting(meeting_id, limit=1))
+        has_transcription = self.uow.transcriptions.get_by_meeting_id(meeting_id) is not None
+        can_replace = (
+            existing is not None
+            and meeting.status == ProcessingStatus.AUDIO_UPLOADED.value
+            and not has_processing_history
+            and not has_transcription
+        )
+        return {
+            "allowed_extensions": sorted(AudioValidator.ALLOWED_TYPES.keys()),
+            "max_size_bytes": self.validator.max_size,
+            "max_size_mb": round(self.validator.max_size / 1024 / 1024, 1),
+            "has_audio": existing is not None,
+            "can_replace": can_replace,
+            "replace_reason": None if can_replace or existing is None else "O áudio só pode ser substituído antes do processamento começar.",
+        }
+
     def upload_stream(
         self,
         meeting_id: int,
         filename: str,
         content_type: str,
         stream: BinaryIO,
+        replace_existing: bool = False,
     ) -> Audio:
         """Stage an upload in chunks, validate it, then persist it atomically."""
         meeting = self.meetings.get_by_id(meeting_id)
         if meeting is None:
             raise MeetingNotFoundError(f"Meeting {meeting_id} was not found")
-        if self.audios.get_by_meeting_id(meeting_id) is not None:
-            raise AudioAlreadyExistsError("This meeting already has an uploaded audio file")
+
+        existing = self.audios.get_by_meeting_id(meeting_id)
+        if existing is not None and not replace_existing:
+            raise AudioAlreadyExistsError("Esta reunião já possui um áudio. Use a opção de substituir antes do processamento, se disponível.")
+        if existing is not None and replace_existing:
+            policy = self.upload_policy(meeting_id)
+            if not policy["can_replace"]:
+                raise AudioUploadError(str(policy["replace_reason"]))
 
         self.validator.validate_metadata(filename, content_type)
-        if not ProcessingStatus(meeting.status).can_transition_to(
-            ProcessingStatus.AUDIO_UPLOADED
-        ):
-            raise AudioUploadError(
-                f"Audio cannot be uploaded while meeting is in status {meeting.status}"
-            )
+        if existing is None and not ProcessingStatus(meeting.status).can_transition_to(ProcessingStatus.AUDIO_UPLOADED):
+            raise AudioUploadError(f"Audio cannot be uploaded while meeting is in status {meeting.status}")
 
         staged: Optional[StagedAudioUpload] = None
         stored_path: Optional[str] = None
         database_committed = False
+        old_path = existing.file_path if existing is not None else None
 
         try:
             try:
-                staged = self.stager.stage(
-                    stream,
-                    max_size=self.validator.max_size,
-                    original_name=filename,
-                )
+                staged = self.stager.stage(stream, max_size=self.validator.max_size, original_name=filename)
             except AudioSizeLimitExceeded as exc:
+                max_mb = round(self.validator.max_size / 1024 / 1024, 1)
                 raise AudioUploadError(
-                    f"Audio file exceeds the maximum size of {self.validator.max_size} bytes"
+                    f"Audio file exceeds the maximum size of {self.validator.max_size} bytes (limite de {max_mb} MB)."
                 ) from exc
 
             header = self.stager.read_prefix(staged)
@@ -113,21 +121,12 @@ class AudioService:
                 header=header,
             )
             media = self.inspector.inspect(staged.absolute_path)
-
-            stored_path = self.stager.promote(
-                staged=staged,
-                original_name=filename,
-                meeting_id=meeting_id,
-            )
+            stored_path = self.stager.promote(staged=staged, original_name=filename, meeting_id=meeting_id)
             size_bytes = staged.size_bytes
             staged = None
 
             now = utc_now()
-            duration = (
-                max(0, math.ceil(media.duration_seconds))
-                if media.duration_seconds is not None
-                else None
-            )
+            duration = max(0, math.ceil(media.duration_seconds)) if media.duration_seconds is not None else None
             audio = Audio(
                 meeting_id=meeting_id,
                 filename=Path(filename).name,
@@ -144,21 +143,28 @@ class AudioService:
 
             try:
                 with self.uow.transaction():
+                    if existing is not None:
+                        existing.deleted_at = now
+                        existing.updated_at = now
+                        self.uow.session.flush()
                     self.audios.add(audio)
-                    if not meeting.transition_status(ProcessingStatus.AUDIO_UPLOADED):
-                        raise AudioUploadError(
-                            f"Audio cannot be uploaded while meeting is in status {meeting.status}"
-                        )
-                    self.meetings.update(meeting)
+                    if existing is None:
+                        if not meeting.transition_status(ProcessingStatus.AUDIO_UPLOADED):
+                            raise AudioUploadError(f"Audio cannot be uploaded while meeting is in status {meeting.status}")
+                        self.meetings.update(meeting)
             except IntegrityError as exc:
                 if self._is_active_audio_conflict(exc):
-                    raise AudioAlreadyExistsError(
-                        "This meeting already has an uploaded audio file"
-                    ) from exc
+                    raise AudioAlreadyExistsError("Esta reunião já possui um áudio ativo.") from exc
                 raise
 
             database_committed = True
-            return self.uow.refresh(audio)
+            refreshed = self.uow.refresh(audio)
+            if old_path:
+                try:
+                    self.storage.delete_file(old_path)
+                except Exception:
+                    pass
+            return refreshed
         except Exception:
             if staged is not None:
                 self.stager.discard(staged)
@@ -168,21 +174,15 @@ class AudioService:
 
     @classmethod
     def _is_active_audio_conflict(cls, exc: IntegrityError) -> bool:
-        """Recognize the active-audio unique rule across SQLite/PostgreSQL errors."""
         original = getattr(exc, "orig", None)
         diagnostic = getattr(original, "diag", None)
         constraint_name = getattr(diagnostic, "constraint_name", None)
         if constraint_name == cls.ACTIVE_AUDIO_CONSTRAINT:
             return True
-
         message = str(original or exc)
-        return (
-            cls.ACTIVE_AUDIO_CONSTRAINT in message
-            or "UNIQUE constraint failed: audios.meeting_id" in message
-        )
+        return cls.ACTIVE_AUDIO_CONSTRAINT in message or "UNIQUE constraint failed: audios.meeting_id" in message
 
     def get_for_meeting(self, meeting_id: int) -> Optional[Audio]:
-        """Return audio metadata for an existing meeting."""
         if self.meetings.get_by_id(meeting_id) is None:
             raise MeetingNotFoundError(f"Meeting {meeting_id} was not found")
         return self.audios.get_by_meeting_id(meeting_id)

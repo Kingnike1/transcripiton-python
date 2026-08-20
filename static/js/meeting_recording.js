@@ -36,3 +36,11 @@
   window.renderJob=function(j){const effective=j.effective_status||j.status;const kind=statusClass[effective]||'secondary';const progress=Math.max(0,Math.min(100,Number(j.progress)||0));const attempt=j.max_attempts?`Tentativa ${j.attempt||0} de ${j.max_attempts}`:'';const age=j.seconds_since_update==null?'':`Última atualização há ${j.seconds_since_update}s`;const diagnosis=j.blocked_reason||j.error_message||'';jobArea.innerHTML=`<div class="border rounded p-3" data-job-id="${esc(j.id)}"><div class="d-flex flex-wrap justify-content-between gap-2"><div><strong>${esc(j.job_type)}</strong><div><span class="badge text-bg-${kind}">${esc(j.status_label||effective)}</span></div></div><strong>${progress}%</strong></div><div class="progress mt-3" role="progressbar" aria-label="Progresso do processamento" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:${progress}%"></div></div><div class="small text-secondary mt-2">${esc(attempt)}${attempt&&age?' • ':''}${esc(age)}</div>${diagnosis?`<div class="alert alert-${effective==='BLOCKED'?'warning':'danger'} py-2 mt-2 mb-2">${esc(diagnosis)}</div>`:''}${j.next_action?`<p class="small mb-2"><strong>Próxima ação:</strong> ${esc(j.next_action)}</p>`:''}<div class="d-flex gap-2">${j.can_retry?'<button type="button" class="btn btn-sm btn-outline-primary job-retry">Tentar novamente</button>':''}${j.can_cancel?'<button type="button" class="btn btn-sm btn-outline-secondary job-cancel">Cancelar</button>':''}</div></div>`;};
   jobArea.addEventListener('click',async event=>{const card=event.target.closest('[data-job-id]');if(!card)return;const jobId=card.dataset.jobId;if(event.target.closest('.job-retry')){const response=await fetch(`/api/jobs/${jobId}/retry`,{method:'POST'});if(response.ok)window.renderJob(await response.json());}if(event.target.closest('.job-cancel')){const response=await fetch(`/api/jobs/${jobId}`,{method:'DELETE'});if(response.ok){const refreshed=await fetch(`/api/jobs/${jobId}`);if(refreshed.ok)window.renderJob(await refreshed.json());}}});
 })();
+
+/* Sprint 4 upload UX is isolated in its own module. */
+(() => {
+  const script = document.createElement('script');
+  script.src = '/static/js/audio_upload.js';
+  script.defer = true;
+  document.body.appendChild(script);
+})();
