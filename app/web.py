@@ -10,6 +10,7 @@ from app.database.session import get_db
 from app.models.meeting import Meeting
 from app.services.auth_service import AuthService, SESSION_COOKIE_NAME
 from app.services.meeting_service import MeetingService
+from app.services.onboarding_service import OnboardingService
 from app.services.readiness_service import ReadinessService
 from app.services.search_service import SearchResult, SearchService
 
@@ -39,7 +40,6 @@ def login_page(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/readiness", response_class=HTMLResponse)
 def readiness_page(request: Request, db: Session = Depends(get_db)):
-    """Show operator-safe environment capabilities without secret values."""
     user = _web_user(request, db)
     if AuthService(db).authentication_enabled() and user is None:
         return RedirectResponse("/login", status_code=303)
@@ -72,6 +72,9 @@ def meetings_page(
             search_error = str(exc)
     else:
         meetings = service.get_all(skip=0, limit=100, owner_id=owner_id)
+
+    workspace_meetings = meetings if search_results is None else service.get_all(skip=0, limit=100, owner_id=owner_id)
+    onboarding = OnboardingService().build(len(workspace_meetings), ReadinessService().payload())
     return templates.TemplateResponse(
         request,
         "meetings.html",
@@ -81,6 +84,7 @@ def meetings_page(
             "search_query": q or "",
             "search_results": search_results,
             "search_error": search_error,
+            "onboarding": onboarding,
         },
     )
 
