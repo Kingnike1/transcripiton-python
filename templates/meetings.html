@@ -10,59 +10,63 @@
 <nav class="navbar navbar-dark bg-dark"><div class="container"><a class="navbar-brand fw-bold" href="/">AMIP</a><div class="d-flex align-items-center gap-3"><a class="btn btn-sm btn-outline-light" href="/readiness">Diagnóstico</a>{% if current_user %}<span class="navbar-text">{{ current_user.email }}</span><button id="logoutBtn" class="btn btn-sm btn-outline-light">Sair</button>{% else %}<span class="navbar-text">Modo local</span>{% endif %}</div></div></nav>
 <main class="container py-4">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-    <div><h1 class="h2 mb-1">Reuniões</h1><p class="text-secondary mb-0">Crie reuniões e encontre conteúdo em títulos, descrições e transcrições.</p></div>
-    <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#newMeeting">Nova reunião</button>
+    <div><h1 class="h2 mb-1">Reuniões</h1><p class="text-secondary mb-0">Transforme áudio em transcrição, speakers e inteligência acompanhando cada etapa.</p></div>
+    <div class="d-flex gap-2"><button id="showGuideBtn" class="btn btn-outline-secondary" type="button">Como funciona</button><button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#newMeeting">Nova reunião</button></div>
   </div>
+
+  <section id="onboardingGuide" class="card shadow-sm border-0 mb-4" aria-labelledby="onboardingTitle">
+    <div class="card-body p-4">
+      <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start mb-3">
+        <div><span class="badge text-bg-primary mb-2">Guia do workspace</span><h2 id="onboardingTitle" class="h4 mb-1">{{ onboarding.headline }}</h2><p class="text-secondary mb-0">O AMIP mostra o próximo passo e avisa quando alguma capacidade precisa de configuração.</p></div>
+        <button id="dismissGuideBtn" type="button" class="btn btn-sm btn-outline-secondary">Ocultar guia</button>
+      </div>
+      {% if onboarding.core_issues %}
+      <div class="alert alert-warning" role="status">
+        <strong>Antes de processar:</strong>
+        {% for issue in onboarding.core_issues %}<div>{{ issue.label }} — {{ issue.message }}{% if issue.action %} {{ issue.action }}{% endif %}</div>{% endfor %}
+      </div>
+      {% elif onboarding.optional_issues %}
+      <div class="alert alert-info" role="status"><strong>Recursos opcionais precisam de atenção:</strong> {% for issue in onboarding.optional_issues %}{{ issue.label }}{% if not loop.last %}, {% endif %}{% endfor %}. O fluxo básico pode continuar conforme as capacidades disponíveis.</div>
+      {% endif %}
+      <div class="row g-3">
+        {% for step in onboarding.steps %}
+        <div class="col-md-6 col-xl-3"><div class="border rounded h-100 p-3">
+          {% if step.status == 'complete' %}<span class="badge text-bg-success mb-2">Concluído</span>{% elif step.status == 'action_required' %}<span class="badge text-bg-warning mb-2">Ação necessária</span>{% elif step.status == 'next' %}<span class="badge text-bg-primary mb-2">Próximo passo</span>{% else %}<span class="badge text-bg-secondary mb-2">Depois</span>{% endif %}
+          <h3 class="h6">{{ loop.index }}. {{ step.title }}</h3><p class="small text-secondary">{{ step.description }}</p>
+          {% if step.href and step.action_label %}<a class="btn btn-sm btn-outline-primary" href="{{ step.href }}">{{ step.action_label }}</a>{% endif %}
+        </div></div>
+        {% endfor %}
+      </div>
+      <p class="small text-muted mt-3 mb-0">Dica: microfone é validado no navegador; diarização e inteligência dependem das capacidades mostradas em Diagnóstico.</p>
+    </div>
+  </section>
+
+  <div class="collapse mb-4" id="newMeeting"><div class="card card-body shadow-sm">
+    <div class="mb-3"><h2 class="h5 mb-1">Criar reunião</h2><p class="small text-secondary mb-0">Depois da criação, o AMIP leva você para a página onde o áudio será adicionado e processado.</p></div>
+    <form id="meetingForm" class="row g-3">
+      <div class="col-md-5"><label class="form-label" for="title">Título</label><input id="title" class="form-control" minlength="3" maxlength="255" required aria-describedby="titleHelp"><div id="titleHelp" class="form-text">Ex.: Reunião semanal — Produto.</div></div>
+      <div class="col-md-5"><label class="form-label" for="description">Descrição <span class="text-muted">(opcional)</span></label><input id="description" class="form-control" maxlength="2000"><div class="form-text">Inclua contexto que ajude a localizar a reunião depois.</div></div>
+      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-success w-100" type="submit">Criar e continuar</button></div>
+    </form>
+  </div></div>
+
   <form method="get" action="/meetings" class="input-group mb-4" role="search">
     <input name="q" value="{{ search_query }}" minlength="2" maxlength="200" class="form-control" placeholder="Buscar em reuniões e transcrições" aria-label="Buscar reuniões">
     <button class="btn btn-outline-primary" type="submit">Buscar</button>
     {% if search_query %}<a class="btn btn-outline-secondary" href="/meetings">Limpar</a>{% endif %}
   </form>
   {% if search_error %}<div class="alert alert-danger">{{ search_error }}</div>{% endif %}
-  <div id="notice"></div>
-  <div class="collapse mb-4" id="newMeeting"><div class="card card-body shadow-sm">
-    <form id="meetingForm" class="row g-3">
-      <div class="col-md-5"><label class="form-label" for="title">Título</label><input id="title" class="form-control" minlength="3" maxlength="255" required></div>
-      <div class="col-md-5"><label class="form-label" for="description">Descrição</label><input id="description" class="form-control"></div>
-      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-success w-100" type="submit">Criar</button></div>
-    </form>
-  </div></div>
+  <div id="notice" aria-live="polite"></div>
   <div class="row g-3">
   {% if search_results is not none %}
     {% for result in search_results %}
-      <div class="col-12"><a class="card shadow-sm text-decoration-none text-body" href="/meetings/{{ result.meeting_id }}"><div class="card-body">
-        <div class="d-flex justify-content-between gap-2"><h2 class="h5">{{ result.title }}</h2><span class="badge text-bg-secondary">{{ result.status }}</span></div>
-        <small class="text-primary">Encontrado em: {{ result.matched_in|join(', ') }}</small>
-        {% if result.snippet %}<p class="text-secondary mt-2 mb-0">{{ result.snippet }}</p>{% endif %}
-      </div></a></div>
-    {% else %}
-      <div class="col-12"><div class="alert alert-info">Nenhum resultado para “{{ search_query }}”.</div></div>
-    {% endfor %}
+      <div class="col-12"><a class="card shadow-sm text-decoration-none text-body" href="/meetings/{{ result.meeting_id }}"><div class="card-body"><div class="d-flex justify-content-between gap-2"><h2 class="h5">{{ result.title }}</h2><span class="badge text-bg-secondary">{{ result.status }}</span></div><small class="text-primary">Encontrado em: {{ result.matched_in|join(', ') }}</small>{% if result.snippet %}<p class="text-secondary mt-2 mb-0">{{ result.snippet }}</p>{% endif %}</div></a></div>
+    {% else %}<div class="col-12"><div class="alert alert-info">Nenhum resultado para “{{ search_query }}”.</div></div>{% endfor %}
   {% else %}
     {% for meeting in meetings %}
-      <div class="col-md-6 col-xl-4"><a class="card h-100 shadow-sm text-decoration-none text-body" href="/meetings/{{ meeting.id }}"><div class="card-body">
-        <div class="d-flex justify-content-between gap-2"><h2 class="h5">{{ meeting.title }}</h2><span class="badge text-bg-secondary align-self-start">{{ meeting.status }}</span></div>
-        <p class="text-secondary mb-2">{{ meeting.description or 'Sem descrição.' }}</p><small class="text-muted">Criada em {{ meeting.created_at.strftime('%d/%m/%Y %H:%M') }}</small>
-      </div></a></div>
+      <div class="col-md-6 col-xl-4"><a class="card h-100 shadow-sm text-decoration-none text-body" href="/meetings/{{ meeting.id }}"><div class="card-body"><div class="d-flex justify-content-between gap-2"><h2 class="h5">{{ meeting.title }}</h2><span class="badge text-bg-secondary align-self-start">{{ meeting.status }}</span></div><p class="text-secondary mb-2">{{ meeting.description or 'Sem descrição.' }}</p><small class="text-muted">Criada em {{ meeting.created_at.strftime('%d/%m/%Y %H:%M') }}</small></div></a></div>
     {% else %}
-      <div class="col-12">
-        <section class="card shadow-sm border-0">
-          <div class="card-body p-4">
-            <h2 class="h4">Comece sua primeira reunião</h2>
-            <p class="text-secondary">O fluxo do AMIP acontece em três passos principais:</p>
-            <div class="row g-3 mb-4">
-              <div class="col-md-4"><strong>1. Crie a reunião</strong><p class="mb-0 text-secondary">Defina um título e organize o contexto.</p></div>
-              <div class="col-md-4"><strong>2. Adicione o áudio</strong><p class="mb-0 text-secondary">Envie um arquivo ou grave pelo microfone.</p></div>
-              <div class="col-md-4"><strong>3. Gere resultados</strong><p class="mb-0 text-secondary">Transcreva, separe speakers e gere inteligência.</p></div>
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-              <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#newMeeting">Criar primeira reunião</button>
-              <a class="btn btn-outline-secondary" href="/readiness">Verificar ambiente</a>
-            </div>
-            <p class="small text-secondary mt-3 mb-0">Microfone exige localhost ou HTTPS. Diarização e inteligência dependem das capacidades disponíveis no ambiente.</p>
-          </div>
-        </section>
-      </div>
+      <div class="col-12"><div class="text-center border rounded bg-white p-5"><h2 class="h4">Nenhuma reunião ainda</h2><p class="text-secondary">Crie a primeira reunião. O AMIP vai orientar o envio do áudio e as próximas etapas na própria página.</p><button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#newMeeting">Criar primeira reunião</button></div></div>
     {% endfor %}
   {% endif %}
   </div>
@@ -70,12 +74,18 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const notice = document.getElementById('notice');
+const guide = document.getElementById('onboardingGuide');
+const guideKey = 'amip:onboarding-guide-hidden';
+function setGuideVisible(visible){ if(!guide) return; guide.classList.toggle('d-none', !visible); }
+try { setGuideVisible(localStorage.getItem(guideKey) !== '1' || {{ 'true' if onboarding.first_run else 'false' }}); } catch (_error) { setGuideVisible(true); }
+document.getElementById('dismissGuideBtn')?.addEventListener('click',()=>{try{localStorage.setItem(guideKey,'1');}catch(_error){}setGuideVisible(false);});
+document.getElementById('showGuideBtn')?.addEventListener('click',()=>{try{localStorage.removeItem(guideKey);}catch(_error){}setGuideVisible(true);guide?.scrollIntoView({behavior:'smooth',block:'start'});});
 document.getElementById('meetingForm').addEventListener('submit', async (event) => {
-  event.preventDefault(); notice.innerHTML = '';
+  event.preventDefault(); notice.textContent = '';
   const response = await fetch('/api/meetings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:document.getElementById('title').value, description:document.getElementById('description').value || null})});
   const data = await response.json();
   if (response.status === 401) { window.location.href='/login'; return; }
-  if (!response.ok) { notice.innerHTML = `<div class="alert alert-danger">${data.detail || 'Não foi possível criar a reunião.'}</div>`; return; }
+  if (!response.ok) { const alert=document.createElement('div');alert.className='alert alert-danger';alert.textContent=typeof data.detail==='string'?data.detail:'Não foi possível criar a reunião.';notice.replaceChildren(alert); return; }
   window.location.href = `/meetings/${data.id}`;
 });
 const logoutBtn=document.getElementById('logoutBtn');
