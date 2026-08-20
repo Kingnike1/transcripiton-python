@@ -5,11 +5,13 @@ on:
     branches:
       - main
       - develop
+      - integration/ux-roadmap
       - "agent/**"
   pull_request:
     branches:
       - main
       - develop
+      - integration/ux-roadmap
   workflow_dispatch:
 
 permissions:
