@@ -22,27 +22,11 @@ class PersistentJobService:
         self.uow = SqlAlchemyUnitOfWork(session)
         self.repository = ProcessingJobRepository(session)
 
-    def create_job(
-        self,
-        meeting_id: int,
-        job_type: JobType,
-        payload: Optional[dict[str, Any]] = None,
-        max_attempts: int = 3,
-    ) -> ProcessingJob:
-        """Create a job idempotently while another active job exists."""
+    def create_job(self, meeting_id: int, job_type: JobType, payload: Optional[dict[str, Any]] = None, max_attempts: int = 3) -> ProcessingJob:
         active = self.repository.get_active(meeting_id, job_type)
         if active is not None:
             return active
-
-        job = ProcessingJob(
-            id=str(uuid4()),
-            meeting_id=meeting_id,
-            job_type=job_type.value,
-            status=JobStatus.PENDING.value,
-            payload=payload or {},
-            max_attempts=max(1, max_attempts),
-            available_at=utc_now(),
-        )
+        job = ProcessingJob(id=str(uuid4()), meeting_id=meeting_id, job_type=job_type.value, status=JobStatus.PENDING.value, payload=payload or {}, max_attempts=max(1, max_attempts), available_at=utc_now())
         try:
             with self.uow.transaction():
                 self.repository.create(job)
@@ -61,18 +45,9 @@ class PersistentJobService:
     def get_jobs_by_meeting(self, meeting_id: int) -> list[ProcessingJob]:
         return self.repository.get_by_meeting(meeting_id)
 
-    def claim_next(
-        self,
-        worker_id: str,
-        lease_seconds: int = 60,
-        job_type: JobType | None = None,
-    ) -> Optional[ProcessingJob]:
+    def claim_next(self, worker_id: str, lease_seconds: int = 60, job_type: JobType | None = None) -> Optional[ProcessingJob]:
         with self.uow.transaction():
-            job = self.repository.claim_next(
-                worker_id=worker_id,
-                lease_seconds=lease_seconds,
-                job_type=job_type,
-            )
+            job = self.repository.claim_next(worker_id=worker_id, lease_seconds=lease_seconds, job_type=job_type)
         return job
 
     def heartbeat(self, job_id: str, worker_id: str) -> bool:
@@ -89,12 +64,7 @@ class PersistentJobService:
             self.session.flush()
         return True
 
-    def complete(
-        self,
-        job_id: str,
-        worker_id: str,
-        result: Optional[dict[str, Any]] = None,
-    ) -> bool:
+    def complete(self, job_id: str, worker_id: str, result: Optional[dict[str, Any]] = None) -> bool:
         job = self.repository.get_by_id(job_id)
         if job is None or job.status != JobStatus.RUNNING.value or job.locked_by != worker_id:
             return False
@@ -112,13 +82,7 @@ class PersistentJobService:
             self.session.flush()
         return True
 
-    def fail_or_retry(
-        self,
-        job_id: str,
-        worker_id: str,
-        error_message: str,
-        retry_delay_seconds: int = 5,
-    ) -> bool:
+    def fail_or_retry(self, job_id: str, worker_id: str, error_message: str, retry_delay_seconds: int = 5) -> bool:
         job = self.repository.get_by_id(job_id)
         if job is None or job.status != JobStatus.RUNNING.value or job.locked_by != worker_id:
             return False
@@ -135,6 +99,28 @@ class PersistentJobService:
             else:
                 job.status = JobStatus.FAILED.value
                 job.completed_at = now
+            self.session.flush()
+        return True
+
+    def retry(self, job_id: str) -> bool:
+        """Explicitly requeue a failed job while preserving its audit identity."""
+        job = self.repository.get_by_id(job_id)
+        if job is None or job.status != JobStatus.FAILED.value:
+            return False
+        with self.uow.transaction():
+            now = utc_now()
+            job.status = JobStatus.PENDING.value
+            job.progress = 0
+            job.attempt = 0
+            job.error_message = None
+            job.result = None
+            job.available_at = now
+            job.started_at = None
+            job.completed_at = None
+            job.locked_by = None
+            job.locked_at = None
+            job.heartbeat_at = None
+            job.updated_at = now
             self.session.flush()
         return True
 
