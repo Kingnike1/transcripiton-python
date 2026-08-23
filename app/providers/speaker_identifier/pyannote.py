@@ -5,6 +5,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from app.core.time import utc_now
+from app.infrastructure.media_runtime import prepare_media_runtime
 from app.services.interfaces import DiarizationResult, ISpeakerIdentifier, SpeakerSegment
 
 PipelineFactory = Callable[..., Any]
@@ -19,13 +20,16 @@ class PyannoteSpeakerIdentifier(ISpeakerIdentifier):
         token: Optional[str] = None,
         device: str = "cpu",
         pipeline_factory: Optional[PipelineFactory] = None,
+        ffmpeg_bin_dir: Optional[str] = None,
     ) -> None:
         if pipeline_factory is None:
             try:
+                prepare_media_runtime(ffmpeg_bin_dir)
                 from pyannote.audio import Pipeline
-            except ImportError as exc:  # pragma: no cover - environment contract
+            except (ImportError, OSError, RuntimeError) as exc:  # pragma: no cover - environment contract
                 raise RuntimeError(
-                    "pyannote.audio is not installed; install requirements-worker.txt"
+                    "pyannote runtime is unavailable; verify requirements-worker.txt and the "
+                    "FFmpeg Shared runtime on Windows (or FFmpeg libraries on Linux)"
                 ) from exc
             pipeline_factory = Pipeline.from_pretrained
 
