@@ -6,23 +6,20 @@ from app.config.base import AMIPBaseSettings
 
 
 class LoggingSettings(AMIPBaseSettings):
-    """Logging-level settings."""
+    """Logging and retention settings."""
 
-    LOG_LEVEL: str = Field(
-        default="INFO",
-        description="Logging level",
-    )
+    LOG_LEVEL: str = Field(default="INFO", description="Logging level")
     LOG_FILE: str = Field(
-        default="./logs/app.log",
-        description="Path to the rotating log file",
+        default="./logs/amip.log",
+        description="Path to the active AMIP technical log file",
     )
     LOG_MAX_BYTES: int = Field(
         default=10 * 1024 * 1024,
         gt=0,
-        description="Maximum log file size in bytes",
+        description="Rotate the active log after this many bytes (default: 10 MiB)",
     )
     LOG_BACKUP_COUNT: int = Field(
         default=5,
-        ge=0,
-        description="Number of backup log files to keep",
+        ge=1,
+        description="Number of rotated log files retained alongside the active log",
     )
