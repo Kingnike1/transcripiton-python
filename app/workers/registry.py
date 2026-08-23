@@ -37,6 +37,7 @@ def build_worker() -> JobWorker:
             model_name=settings.PYANNOTE_MODEL,
             token=settings.ai.HUGGINGFACE_TOKEN,
             device=settings.PYANNOTE_DEVICE,
+            ffmpeg_bin_dir=settings.audio.FFMPEG_BIN_DIR,
         )
         diarization_handler = DiarizationJobHandler(identifier=identifier)
         worker.register_handler(
@@ -54,6 +55,10 @@ def build_worker() -> JobWorker:
             base_url=settings.OLLAMA_URL,
             model=settings.OLLAMA_MODEL,
             timeout_seconds=settings.ai.OLLAMA_TIMEOUT_SECONDS,
+            auto_start_local=(
+                settings.ENVIRONMENT == "development"
+                and settings.ai.OLLAMA_AUTO_START_LOCAL
+            ),
         )
         analysis_handler = AnalysisJobHandler(provider=llm)
         worker.register_handler(
