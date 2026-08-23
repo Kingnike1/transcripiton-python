@@ -83,6 +83,26 @@
     return candidates.find(type => MediaRecorder.isTypeSupported(type)) || '';
   }
 
+  async function requestRoomAudio() {
+    const rawAudioConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+
+    try {
+      return await navigator.mediaDevices.getUserMedia({audio: rawAudioConstraints});
+    } catch (error) {
+      const unsupportedConstraints =
+        error && (error.name === 'OverconstrainedError' || error.name === 'TypeError');
+      if (!unsupportedConstraints) throw error;
+
+      // Older/limited browsers may reject one of the optional processing flags.
+      // Fall back to the default microphone capture instead of blocking recording.
+      return navigator.mediaDevices.getUserMedia({audio: true});
+    }
+  }
+
   async function startRecording() {
     resetPreview();
     discardRequested = false;
@@ -96,7 +116,7 @@
     }
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      stream = await requestRoomAudio();
       const mimeType = preferredMimeType();
       recorder = mimeType ? new MediaRecorder(stream, {mimeType}) : new MediaRecorder(stream);
       recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
@@ -143,7 +163,7 @@
       discardBtn.classList.remove('d-none');
       stopBtn.classList.remove('d-none');
       stopBtn.disabled = false;
-      setStatus('Gravando. O áudio ainda está somente neste navegador.', 'danger');
+      setStatus('Gravando o ambiente sem supressão de voz do navegador.', 'danger');
     } catch (error) {
       stopTracks();
       resetControls();
