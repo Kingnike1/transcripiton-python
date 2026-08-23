@@ -7,7 +7,7 @@ from app.workers.registry import build_worker
 def main() -> None:
     """Build configured handlers and process durable jobs forever."""
     worker = build_worker()
-    logger.info("Starting durable AMIP worker")
+    logger.info("Worker de processamento iniciado")
     worker.run_forever()
 
 
