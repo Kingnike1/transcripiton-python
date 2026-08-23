@@ -20,7 +20,15 @@ from typing import Iterator, Optional
 from app.config import settings
 
 _LOG_CONTEXT: ContextVar[dict[str, object]] = ContextVar("amip_log_context", default={})
-_CONTEXT_FIELDS = ("request_id", "meeting_id", "job_id", "job_type", "attempt", "worker_id")
+_CONTEXT_FIELDS = (
+    "request_id",
+    "meeting_id",
+    "job_id",
+    "job_type",
+    "attempt",
+    "worker_id",
+    "error_code",
+)
 _SECRET_ENV_MARKERS = ("SECRET", "TOKEN", "PASSWORD", "API_KEY", "PRIVATE_KEY", "ACCESS_KEY")
 
 
@@ -31,13 +39,17 @@ class SensitiveDataRedactor:
         r"(?i)\b(secret(?:_key)?|token|password|api[_-]?key|authorization|bearer)\b"
         r"(\s*[:=]\s*)([^\s,;]+)"
     )
-    _url_credentials_pattern = re.compile(r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)[^/@\s:]+:[^/@\s]+@")
+    _url_credentials_pattern = re.compile(
+        r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)[^/@\s:]+:[^/@\s]+@"
+    )
 
     @classmethod
     def _known_values(cls) -> tuple[str, ...]:
         values: list[str] = []
         for key, value in os.environ.items():
-            if value and len(value) >= 6 and any(marker in key.upper() for marker in _SECRET_ENV_MARKERS):
+            if value and len(value) >= 6 and any(
+                marker in key.upper() for marker in _SECRET_ENV_MARKERS
+            ):
                 values.append(value)
         return tuple(sorted(set(values), key=len, reverse=True))
 
@@ -75,7 +87,7 @@ class DiagnosticContextFilter(logging.Filter):
 
 
 class RedactingTechnicalFormatter(logging.Formatter):
-    """Format full technical records, then redact the final text including traceback."""
+    """Format full technical records, then redact final text including traceback."""
 
     def format(self, record: logging.LogRecord) -> str:
         return SensitiveDataRedactor.redact(super().format(record))
@@ -92,7 +104,9 @@ class FriendlyConsoleFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         message = SensitiveDataRedactor.redact(record.getMessage())
-        return f"{self._prefixes.get(record.levelno, '→')} {message}"
+        error_code = getattr(record, "error_code", None)
+        code_suffix = f" [{error_code}]" if error_code and error_code != "-" else ""
+        return f"{self._prefixes.get(record.levelno, '→')} {message}{code_suffix}"
 
 
 class LoggerFactory:
@@ -102,7 +116,7 @@ class LoggerFactory:
         "%(asctime)s | %(levelname)s | %(name)s | pid=%(process)d | thread=%(threadName)s | "
         "request_id=%(request_id)s | meeting_id=%(meeting_id)s | job_id=%(job_id)s | "
         "job_type=%(job_type)s | attempt=%(attempt)s | worker_id=%(worker_id)s | "
-        "%(pathname)s:%(lineno)d | %(funcName)s | %(message)s",
+        "error_code=%(error_code)s | %(pathname)s:%(lineno)d | %(funcName)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     _console_formatter = FriendlyConsoleFormatter()
@@ -116,6 +130,7 @@ class LoggerFactory:
     @classmethod
     def _create_console_handler(cls) -> logging.StreamHandler:
         handler = logging.StreamHandler(sys.stdout)
+        handler.addFilter(cls._context_filter)
         handler.setFormatter(cls._console_formatter)
         return handler
 
@@ -171,6 +186,7 @@ def _install_uncaught_exception_hooks() -> None:
         logging.getLogger("amip.uncaught").critical(
             "Unhandled application exception",
             exc_info=(exc_type, exc_value, exc_traceback),
+            extra={"error_code": "AMIP-001"},
         )
 
     def handle_thread(args: threading.ExceptHookArgs) -> None:
@@ -178,6 +194,7 @@ def _install_uncaught_exception_hooks() -> None:
             "Unhandled exception in thread %s",
             args.thread.name if args.thread else "unknown",
             exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+            extra={"error_code": "AMIP-001"},
         )
 
     sys.excepthook = handle_main
