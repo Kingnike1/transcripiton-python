@@ -47,9 +47,10 @@ test.db
 *.sqlite
 *.sqlite3
 
-# Logs
+# Logs and diagnostics
 logs/
 *.log
+diagnostics/
 
 # Storage (local files, not code)
 storage/
