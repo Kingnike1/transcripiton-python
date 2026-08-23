@@ -1,13 +1,15 @@
 """AMIP logging configuration.
 
 Console output is concise for operators; rotating files keep diagnostic detail
-and contextual identifiers for support.
+and contextual identifiers for support. Sensitive values are redacted before
+any formatted record reaches disk or the terminal.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import sys
 import threading
 from contextlib import contextmanager
@@ -19,6 +21,34 @@ from app.config import settings
 
 _LOG_CONTEXT: ContextVar[dict[str, object]] = ContextVar("amip_log_context", default={})
 _CONTEXT_FIELDS = ("request_id", "meeting_id", "job_id", "job_type", "attempt", "worker_id")
+_SECRET_ENV_MARKERS = ("SECRET", "TOKEN", "PASSWORD", "API_KEY", "PRIVATE_KEY", "ACCESS_KEY")
+
+
+class SensitiveDataRedactor:
+    """Best-effort redaction for credentials that could leak through errors."""
+
+    _assignment_pattern = re.compile(
+        r"(?i)\b(secret(?:_key)?|token|password|api[_-]?key|authorization|bearer)\b"
+        r"(\s*[:=]\s*)([^\s,;]+)"
+    )
+    _url_credentials_pattern = re.compile(r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)[^/@\s:]+:[^/@\s]+@")
+
+    @classmethod
+    def _known_values(cls) -> tuple[str, ...]:
+        values: list[str] = []
+        for key, value in os.environ.items():
+            if value and len(value) >= 6 and any(marker in key.upper() for marker in _SECRET_ENV_MARKERS):
+                values.append(value)
+        return tuple(sorted(set(values), key=len, reverse=True))
+
+    @classmethod
+    def redact(cls, text: str) -> str:
+        sanitized = text
+        for value in cls._known_values():
+            sanitized = sanitized.replace(value, "[REDACTED]")
+        sanitized = cls._assignment_pattern.sub(r"\1\2[REDACTED]", sanitized)
+        sanitized = cls._url_credentials_pattern.sub(r"\g<scheme>[REDACTED]@", sanitized)
+        return sanitized
 
 
 @contextmanager
@@ -44,6 +74,13 @@ class DiagnosticContextFilter(logging.Filter):
         return True
 
 
+class RedactingTechnicalFormatter(logging.Formatter):
+    """Format full technical records, then redact the final text including traceback."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return SensitiveDataRedactor.redact(super().format(record))
+
+
 class FriendlyConsoleFormatter(logging.Formatter):
     _prefixes = {
         logging.DEBUG: "·",
@@ -54,13 +91,14 @@ class FriendlyConsoleFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:
-        return f"{self._prefixes.get(record.levelno, '→')} {record.getMessage()}"
+        message = SensitiveDataRedactor.redact(record.getMessage())
+        return f"{self._prefixes.get(record.levelno, '→')} {message}"
 
 
 class LoggerFactory:
     """Create consistent AMIP and root log handlers."""
 
-    _file_formatter = logging.Formatter(
+    _file_formatter = RedactingTechnicalFormatter(
         "%(asctime)s | %(levelname)s | %(name)s | pid=%(process)d | thread=%(threadName)s | "
         "request_id=%(request_id)s | meeting_id=%(meeting_id)s | job_id=%(job_id)s | "
         "job_type=%(job_type)s | attempt=%(attempt)s | worker_id=%(worker_id)s | "
