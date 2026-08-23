@@ -1,7 +1,10 @@
+"""AMIP logging configuration.
+
+Console output is intentionally concise for operators, while the rotating file
+keeps enough technical detail for diagnostics.
 """
-Logging configuration module for AMIP.
-Sets up structured file logging and a friendly console experience.
-"""
+
+from __future__ import annotations
 
 import logging
 import os
@@ -25,19 +28,53 @@ class FriendlyConsoleFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         prefix = self._prefixes.get(record.levelno, "→")
-        message = record.getMessage()
-        return f"{prefix} {message}"
+        return f"{prefix} {record.getMessage()}"
 
 
 class LoggerFactory:
-    """Factory for creating consistently configured AMIP loggers."""
+    """Create consistent AMIP and root log handlers."""
 
-    # Keep technical detail in files. Later observability sprints will enrich it.
     _file_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
+        "%(asctime)s | %(levelname)s | %(name)s | pid=%(process)d | "
+        "thread=%(threadName)s | %(pathname)s:%(lineno)d | %(funcName)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     _console_formatter = FriendlyConsoleFormatter()
+
+    @classmethod
+    def _level(cls, level: Optional[str]) -> int:
+        value = level or settings.logging.LOG_LEVEL
+        return getattr(logging, value.upper(), logging.INFO)
+
+    @classmethod
+    def _create_console_handler(cls) -> logging.StreamHandler:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(cls._console_formatter)
+        return handler
+
+    @classmethod
+    def _create_file_handler(cls) -> RotatingFileHandler:
+        log_dir = os.path.dirname(settings.logging.LOG_FILE)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        handler = RotatingFileHandler(
+            settings.logging.LOG_FILE,
+            maxBytes=settings.logging.LOG_MAX_BYTES,
+            backupCount=settings.logging.LOG_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        handler.setFormatter(cls._file_formatter)
+        return handler
+
+    @classmethod
+    def configure_root(cls, level: Optional[str] = None) -> logging.Logger:
+        """Capture logs from AMIP modules that use ``logging.getLogger(__name__)``."""
+        root = logging.getLogger()
+        root.setLevel(cls._level(level))
+        root.handlers.clear()
+        root.addHandler(cls._create_console_handler())
+        root.addHandler(cls._create_file_handler())
+        return root
 
     @classmethod
     def get_logger(
@@ -47,46 +84,20 @@ class LoggerFactory:
         console: bool = True,
         file: bool = True,
     ) -> logging.Logger:
-        """Create and configure a logger instance."""
         logger = logging.getLogger(name)
-
-        if level is None:
-            level = settings.logging.LOG_LEVEL
-        logger.setLevel(getattr(logging, level.upper(), logging.INFO))
-        logger.propagate = False
-
-        # Clear existing handlers to avoid duplicate output on reload/import.
+        logger.setLevel(cls._level(level))
         logger.handlers.clear()
-
+        logger.propagate = False
         if console:
-            console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(cls._console_formatter)
-            logger.addHandler(console_handler)
-
+            logger.addHandler(cls._create_console_handler())
         if file:
-            file_handler = cls._create_file_handler()
-            file_handler.setFormatter(cls._file_formatter)
-            logger.addHandler(file_handler)
-
+            logger.addHandler(cls._create_file_handler())
         return logger
-
-    @classmethod
-    def _create_file_handler(cls) -> RotatingFileHandler:
-        """Create the existing rotating technical file handler."""
-        log_dir = os.path.dirname(settings.logging.LOG_FILE)
-        if log_dir:
-            os.makedirs(log_dir, exist_ok=True)
-
-        return RotatingFileHandler(
-            settings.logging.LOG_FILE,
-            maxBytes=settings.logging.LOG_MAX_BYTES,
-            backupCount=settings.logging.LOG_BACKUP_COUNT,
-            encoding="utf-8",
-        )
 
 
 def setup_logging() -> logging.Logger:
-    """Configure the main AMIP logger for console and file output."""
+    """Configure root capture plus the main AMIP logger."""
+    LoggerFactory.configure_root(settings.logging.LOG_LEVEL)
     return LoggerFactory.get_logger(
         "amip",
         level=settings.logging.LOG_LEVEL,
