@@ -1,7 +1,7 @@
 """AMIP logging configuration.
 
-Console output is intentionally concise for operators, while the rotating file
-keeps enough technical detail for diagnostics.
+Console output is concise for operators; rotating files keep diagnostic detail
+and contextual identifiers for support.
 """
 
 from __future__ import annotations
@@ -10,15 +10,41 @@ import logging
 import os
 import sys
 import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 from logging.handlers import RotatingFileHandler
-from typing import Optional
+from typing import Iterator, Optional
 
 from app.config import settings
 
+_LOG_CONTEXT: ContextVar[dict[str, object]] = ContextVar("amip_log_context", default={})
+_CONTEXT_FIELDS = ("request_id", "meeting_id", "job_id", "job_type", "attempt", "worker_id")
+
+
+@contextmanager
+def log_context(**values: object) -> Iterator[None]:
+    """Temporarily enrich every log record in the current execution context."""
+    merged = dict(_LOG_CONTEXT.get())
+    merged.update({key: value for key, value in values.items() if value is not None})
+    token = _LOG_CONTEXT.set(merged)
+    try:
+        yield
+    finally:
+        _LOG_CONTEXT.reset(token)
+
+
+class DiagnosticContextFilter(logging.Filter):
+    """Guarantee stable context fields for technical log formatting."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        current = _LOG_CONTEXT.get()
+        for field in _CONTEXT_FIELDS:
+            if not hasattr(record, field):
+                setattr(record, field, current.get(field, "-"))
+        return True
+
 
 class FriendlyConsoleFormatter(logging.Formatter):
-    """Render concise, human-friendly messages in the terminal."""
-
     _prefixes = {
         logging.DEBUG: "·",
         logging.INFO: "✓",
@@ -28,19 +54,21 @@ class FriendlyConsoleFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:
-        prefix = self._prefixes.get(record.levelno, "→")
-        return f"{prefix} {record.getMessage()}"
+        return f"{self._prefixes.get(record.levelno, '→')} {record.getMessage()}"
 
 
 class LoggerFactory:
     """Create consistent AMIP and root log handlers."""
 
     _file_formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(name)s | pid=%(process)d | "
-        "thread=%(threadName)s | %(pathname)s:%(lineno)d | %(funcName)s | %(message)s",
+        "%(asctime)s | %(levelname)s | %(name)s | pid=%(process)d | thread=%(threadName)s | "
+        "request_id=%(request_id)s | meeting_id=%(meeting_id)s | job_id=%(job_id)s | "
+        "job_type=%(job_type)s | attempt=%(attempt)s | worker_id=%(worker_id)s | "
+        "%(pathname)s:%(lineno)d | %(funcName)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     _console_formatter = FriendlyConsoleFormatter()
+    _context_filter = DiagnosticContextFilter()
 
     @classmethod
     def _level(cls, level: Optional[str]) -> int:
@@ -64,12 +92,12 @@ class LoggerFactory:
             backupCount=settings.logging.LOG_BACKUP_COUNT,
             encoding="utf-8",
         )
+        handler.addFilter(cls._context_filter)
         handler.setFormatter(cls._file_formatter)
         return handler
 
     @classmethod
     def configure_root(cls, level: Optional[str] = None) -> logging.Logger:
-        """Capture logs from modules that use ``logging.getLogger(__name__)``."""
         root = logging.getLogger()
         root.setLevel(cls._level(level))
         root.handlers.clear()
@@ -97,8 +125,6 @@ class LoggerFactory:
 
 
 def _install_uncaught_exception_hooks() -> None:
-    """Persist tracebacks for otherwise uncaught main/thread exceptions."""
-
     def handle_main(exc_type, exc_value, exc_traceback) -> None:  # type: ignore[no-untyped-def]
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
@@ -120,13 +146,9 @@ def _install_uncaught_exception_hooks() -> None:
 
 
 def setup_logging() -> logging.Logger:
-    """Configure root capture, main AMIP logger, and traceback safety nets."""
     LoggerFactory.configure_root(settings.logging.LOG_LEVEL)
     main_logger = LoggerFactory.get_logger(
-        "amip",
-        level=settings.logging.LOG_LEVEL,
-        console=True,
-        file=True,
+        "amip", level=settings.logging.LOG_LEVEL, console=True, file=True
     )
     _install_uncaught_exception_hooks()
     return main_logger
