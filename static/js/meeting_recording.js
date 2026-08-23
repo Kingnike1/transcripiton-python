@@ -22,7 +22,12 @@
 
   let recorder = null;
   let stream = null;
+  let microphoneStream = null;
   let meetingDisplayStream = null;
+  let audioContext = null;
+  let mixedDestination = null;
+  let microphoneSource = null;
+  let meetingSource = null;
   let chunks = [];
   let recordedBlob = null;
   let recordedMimeType = '';
@@ -55,6 +60,24 @@
     meetingDisplayStream = null;
   }
 
+  function stopMicrophoneStream() {
+    if (microphoneStream) microphoneStream.getTracks().forEach(track => track.stop());
+    microphoneStream = null;
+  }
+
+  async function closeAudioMixer() {
+    microphoneSource = null;
+    meetingSource = null;
+    mixedDestination = null;
+    if (audioContext) {
+      const context = audioContext;
+      audioContext = null;
+      if (context.state !== 'closed') {
+        try { await context.close(); } catch (_error) { /* cleanup best effort */ }
+      }
+    }
+  }
+
   function updateOnlineReadiness() {
     if (recordingMode !== 'online') return;
     const ready = hasLiveMeetingAudio();
@@ -77,9 +100,9 @@
     if (recordingMode === 'online') {
       meetingAudioReadinessRow.classList.remove('d-none');
       meetingAudioControls.classList.remove('d-none');
-      modeHelp.textContent = 'Modo online: selecione a aba da reunião com compartilhamento de áudio. O microfone local será solicitado ao iniciar a gravação.';
+      modeHelp.textContent = 'Modo online: selecione a aba da reunião com compartilhamento de áudio. Ao iniciar, o AMIP combinará esse áudio com o microfone local.';
       updateOnlineReadiness();
-      setStatus(hasLiveMeetingAudio() ? 'Áudio da reunião selecionado. Pronto para solicitar o microfone.' : 'Selecione a aba da reunião e habilite o compartilhamento de áudio.', hasLiveMeetingAudio() ? 'success' : 'warning');
+      setStatus(hasLiveMeetingAudio() ? 'Áudio da reunião selecionado. Pronto para solicitar o microfone e iniciar.' : 'Selecione a aba da reunião e habilite o compartilhamento de áudio.', hasLiveMeetingAudio() ? 'success' : 'warning');
       return;
     }
 
@@ -153,14 +176,16 @@
     return `${minutes}:${seconds}`;
   }
 
-  function stopTracks() {
-    if (stream) stream.getTracks().forEach(track => track.stop());
+  function stopRecorderStream() {
+    if (stream && stream !== microphoneStream) stream.getTracks().forEach(track => track.stop());
     stream = null;
   }
 
-  function stopAllTracks() {
-    stopTracks();
-    stopMeetingDisplayStream();
+  async function stopCaptureResources({stopMeeting = true} = {}) {
+    stopRecorderStream();
+    stopMicrophoneStream();
+    if (stopMeeting) stopMeetingDisplayStream();
+    await closeAudioMixer();
   }
 
   function stopTimer() {
@@ -214,71 +239,189 @@
     }
   }
 
+  async function buildOnlineMixedStream() {
+    if (!hasLiveMeetingAudio()) throw new Error('MeetingAudioTrackMissing');
+
+    microphoneStream = await requestRoomAudio();
+    const microphoneTrack = microphoneStream.getAudioTracks()[0];
+    if (!microphoneTrack) throw new Error('MicrophoneAudioTrackMissing');
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) throw new Error('WebAudioUnavailable');
+
+    audioContext = new AudioContextClass();
+    if (audioContext.state === 'suspended') await audioContext.resume();
+
+    mixedDestination = audioContext.createMediaStreamDestination();
+    microphoneSource = audioContext.createMediaStreamSource(microphoneStream);
+    meetingSource = audioContext.createMediaStreamSource(meetingDisplayStream);
+
+    microphoneSource.connect(mixedDestination);
+    meetingSource.connect(mixedDestination);
+
+    const mixedAudioTracks = mixedDestination.stream.getAudioTracks();
+    if (!mixedAudioTracks.length) throw new Error('MixedAudioTrackMissing');
+
+    return mixedDestination.stream;
+  }
+
+  function attachRecorderHandlers() {
+    chunks = [];
+    recorder.addEventListener('dataavailable', event => {
+      if (event.data && event.data.size > 0) chunks.push(event.data);
+    });
+    recorder.addEventListener('stop', async () => {
+      await stopCaptureResources();
+      stopTimer();
+      if (discardRequested) {
+        resetPreview();
+        resetControls();
+        recorder = null;
+        discardRequested = false;
+        return;
+      }
+      recordedBlob = new Blob(chunks, {type: recordedMimeType});
+      if (!recordedBlob.size) {
+        resetControls();
+        discardBtn.classList.remove('d-none');
+        setStatus('Nenhum áudio foi capturado. Tente novamente.', 'danger');
+        return;
+      }
+      previewUrl = URL.createObjectURL(recordedBlob);
+      preview.src = previewUrl;
+      preview.classList.remove('d-none');
+      uploadBtn.classList.remove('d-none');
+      discardBtn.classList.remove('d-none');
+      startBtn.classList.add('d-none');
+      stopBtn.classList.add('d-none');
+      stopBtn.disabled = false;
+      setModeInputsDisabled(false);
+      setStatus(`Gravação pronta (${(recordedBlob.size / 1024 / 1024).toFixed(2)} MB). Revise as vozes antes de enviar.`, 'success');
+    });
+  }
+
+  function beginRecorder(recordingStream, message) {
+    stream = recordingStream;
+    const mimeType = preferredMimeType();
+    recorder = mimeType ? new MediaRecorder(stream, {mimeType}) : new MediaRecorder(stream);
+    recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
+    attachRecorderHandlers();
+    recorder.start(1000);
+    startedAt = Date.now();
+    timer.textContent = '00:00';
+    timerId = window.setInterval(() => { timer.textContent = formatDuration(Date.now() - startedAt); }, 500);
+    startBtn.classList.add('d-none');
+    uploadBtn.classList.add('d-none');
+    discardBtn.classList.remove('d-none');
+    stopBtn.classList.remove('d-none');
+    stopBtn.disabled = false;
+    setStatus(message, 'danger');
+  }
+
   async function startRecording() {
     resetPreview();
     discardRequested = false;
-    if (recordingMode === 'online') {
-      if (!hasLiveMeetingAudio()) {
-        updateOnlineReadiness();
-        setStatus('Selecione uma aba da reunião com áudio antes de iniciar.', 'warning');
-        return;
-      }
-      setStatus('Áudio remoto validado. A mistura com o microfone será habilitada na Sprint 3.', 'warning');
+    if (!window.isSecureContext) { setStatus('O microfone exige HTTPS ou localhost.', 'danger'); return; }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { setStatus('Este navegador não oferece gravação de áudio compatível.', 'danger'); return; }
+
+    if (recordingMode === 'online' && !hasLiveMeetingAudio()) {
+      updateOnlineReadiness();
+      setStatus('Selecione uma aba da reunião com áudio antes de iniciar.', 'warning');
       return;
     }
-    if (!window.isSecureContext) { setStatus('O microfone exige HTTPS ou localhost.', 'danger'); return; }
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { setStatus('Este navegador não oferece gravação de microfone compatível.', 'danger'); return; }
 
     try {
       setModeInputsDisabled(true);
+      meetingAudioSelectBtn.disabled = true;
       setReadinessBadge('Solicitando microfone', 'primary');
       microphoneReadiness.textContent = 'Solicitando permissão...';
       microphoneReadiness.className = 'text-primary';
-      stream = await requestRoomAudio();
-      const audioTrack = stream.getAudioTracks()[0];
+
+      if (recordingMode === 'online') {
+        const mixedStream = await buildOnlineMixedStream();
+        microphoneReadiness.textContent = 'Pronto';
+        microphoneReadiness.className = 'text-success';
+        meetingAudioReadiness.textContent = 'Pronto';
+        meetingAudioReadiness.className = 'text-success';
+        setReadinessBadge('Microfone + reunião prontos', 'success');
+        beginRecorder(mixedStream, 'Gravando microfone local + áudio da reunião.');
+        return;
+      }
+
+      microphoneStream = await requestRoomAudio();
+      const audioTrack = microphoneStream.getAudioTracks()[0];
       if (!audioTrack) throw new Error('MicrophoneAudioTrackMissing');
       microphoneReadiness.textContent = 'Pronto';
       microphoneReadiness.className = 'text-success';
       setReadinessBadge('Pronto', 'success');
-      const mimeType = preferredMimeType();
-      recorder = mimeType ? new MediaRecorder(stream, {mimeType}) : new MediaRecorder(stream);
-      recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
-      chunks = [];
-      recorder.addEventListener('dataavailable', event => { if (event.data && event.data.size > 0) chunks.push(event.data); });
-      recorder.addEventListener('stop', () => {
-        stopTracks(); stopTimer();
-        if (discardRequested) { resetPreview(); resetControls(); recorder = null; discardRequested = false; return; }
-        recordedBlob = new Blob(chunks, {type: recordedMimeType});
-        if (!recordedBlob.size) { resetControls(); discardBtn.classList.remove('d-none'); setStatus('Nenhum áudio foi capturado. Tente novamente.', 'danger'); return; }
-        previewUrl = URL.createObjectURL(recordedBlob); preview.src = previewUrl; preview.classList.remove('d-none');
-        uploadBtn.classList.remove('d-none'); discardBtn.classList.remove('d-none'); startBtn.classList.add('d-none'); stopBtn.classList.add('d-none'); stopBtn.disabled = false; setModeInputsDisabled(false);
-        setStatus(`Gravação pronta (${(recordedBlob.size / 1024 / 1024).toFixed(2)} MB). Revise antes de enviar.`, 'success');
-      });
-      recorder.start(1000); startedAt = Date.now(); timer.textContent = '00:00'; timerId = window.setInterval(() => { timer.textContent = formatDuration(Date.now() - startedAt); }, 500);
-      startBtn.classList.add('d-none'); uploadBtn.classList.add('d-none'); discardBtn.classList.remove('d-none'); stopBtn.classList.remove('d-none'); stopBtn.disabled = false;
-      setStatus('Gravando reunião presencial sem supressão de voz do navegador.', 'danger');
+      beginRecorder(microphoneStream, 'Gravando reunião presencial sem supressão de voz do navegador.');
     } catch (error) {
-      stopTracks(); setModeInputsDisabled(false); setReadinessBadge('Microfone indisponível', 'danger'); microphoneReadiness.textContent = 'Indisponível'; microphoneReadiness.className = 'text-danger'; startBtn.disabled = false;
+      await stopCaptureResources({stopMeeting: recordingMode !== 'online'});
+      setModeInputsDisabled(false);
+      meetingAudioSelectBtn.disabled = false;
+      setReadinessBadge('Captura indisponível', 'danger');
+      microphoneReadiness.textContent = 'Indisponível';
+      microphoneReadiness.className = 'text-danger';
+      if (recordingMode === 'online') updateOnlineReadiness();
+      startBtn.disabled = recordingMode === 'online' ? !hasLiveMeetingAudio() : false;
       const denied = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
-      setStatus(denied ? 'Permissão de microfone negada pelo navegador.' : 'Não foi possível iniciar o microfone.', 'danger');
+      if (denied) {
+        setStatus('Permissão de microfone negada pelo navegador.', 'danger');
+      } else if (error?.message === 'WebAudioUnavailable') {
+        setStatus('Este navegador não oferece o mixer de áudio necessário para reuniões online.', 'danger');
+      } else {
+        setStatus('Não foi possível preparar a gravação. Verifique o microfone e o áudio da reunião.', 'danger');
+      }
     }
   }
 
-  function stopRecording() { if (recorder && recorder.state !== 'inactive') recorder.stop(); stopBtn.disabled = true; setStatus('Finalizando gravação...', 'secondary'); }
+  function stopRecording() {
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    stopBtn.disabled = true;
+    setStatus('Finalizando gravação...', 'secondary');
+  }
+
   function discardRecording() {
-    if (recorder && recorder.state !== 'inactive') { discardRequested = true; recorder.stop(); stopTracks(); stopTimer(); setStatus('Descartando gravação...', 'secondary'); return; }
-    resetPreview(); recorder = null; resetControls();
+    if (recorder && recorder.state !== 'inactive') {
+      discardRequested = true;
+      recorder.stop();
+      stopTimer();
+      setStatus('Descartando gravação...', 'secondary');
+      return;
+    }
+    void stopCaptureResources();
+    resetPreview();
+    recorder = null;
+    resetControls();
   }
 
   async function uploadRecording() {
     if (!recordedBlob) return;
-    uploadBtn.disabled = true; discardBtn.disabled = true; setStatus('Enviando a gravação pelo pipeline seguro de áudio...', 'primary');
-    const extension = extensionForMime(recordedMimeType); const filename = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`; const file = new File([recordedBlob], filename, {type: recordedMimeType}); const body = new FormData(); body.append('file', file);
+    uploadBtn.disabled = true;
+    discardBtn.disabled = true;
+    setStatus('Enviando a gravação pelo pipeline seguro de áudio...', 'primary');
+    const extension = extensionForMime(recordedMimeType);
+    const filename = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
+    const file = new File([recordedBlob], filename, {type: recordedMimeType});
+    const body = new FormData();
+    body.append('file', file);
     try {
-      const response = await fetch(`/api/meetings/${meetingId}/audio`, {method: 'POST', body}); const data = await response.json();
-      if (!response.ok) { const detail = typeof data.detail === 'string' ? data.detail : 'Falha ao enviar a gravação.'; setStatus(detail, 'danger'); uploadBtn.disabled = false; discardBtn.disabled = false; return; }
-      setStatus('Gravação enviada. Preparando a reunião para transcrição...', 'success'); window.setTimeout(() => window.location.reload(), 500);
-    } catch (_error) { setStatus('Falha de rede ao enviar a gravação.', 'danger'); uploadBtn.disabled = false; discardBtn.disabled = false; }
+      const response = await fetch(`/api/meetings/${meetingId}/audio`, {method: 'POST', body});
+      const data = await response.json();
+      if (!response.ok) {
+        const detail = typeof data.detail === 'string' ? data.detail : 'Falha ao enviar a gravação.';
+        setStatus(detail, 'danger');
+        uploadBtn.disabled = false;
+        discardBtn.disabled = false;
+        return;
+      }
+      setStatus('Gravação enviada. Preparando a reunião para transcrição...', 'success');
+      window.setTimeout(() => window.location.reload(), 500);
+    } catch (_error) {
+      setStatus('Falha de rede ao enviar a gravação.', 'danger');
+      uploadBtn.disabled = false;
+      discardBtn.disabled = false;
+    }
   }
 
   modeInputs.forEach(input => input.addEventListener('change', renderRecordingMode));
@@ -287,6 +430,6 @@
   stopBtn.addEventListener('click', stopRecording);
   discardBtn.addEventListener('click', discardRecording);
   uploadBtn.addEventListener('click', uploadRecording);
-  window.addEventListener('beforeunload', stopAllTracks);
+  window.addEventListener('beforeunload', () => { void stopCaptureResources(); });
   renderRecordingMode();
 })();
