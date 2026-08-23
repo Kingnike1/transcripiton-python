@@ -1,7 +1,6 @@
 """
 Logging configuration module for AMIP.
-Sets up structured logging with file and console handlers.
-Supports separate log levels for different components.
+Sets up structured file logging and a friendly console experience.
 """
 
 import logging
@@ -13,18 +12,32 @@ from typing import Optional
 from app.config import settings
 
 
-class LoggerFactory:
-    """Factory for creating configured logger instances.
-    
-    Provides methods to create loggers with consistent formatting
-    and handler configuration across the application.
-    """
+class FriendlyConsoleFormatter(logging.Formatter):
+    """Render concise, human-friendly messages in the terminal."""
 
-    # Shared formatter
-    _formatter = logging.Formatter(
+    _prefixes = {
+        logging.DEBUG: "·",
+        logging.INFO: "✓",
+        logging.WARNING: "⚠",
+        logging.ERROR: "✗",
+        logging.CRITICAL: "✗",
+    }
+
+    def format(self, record: logging.LogRecord) -> str:
+        prefix = self._prefixes.get(record.levelno, "→")
+        message = record.getMessage()
+        return f"{prefix} {message}"
+
+
+class LoggerFactory:
+    """Factory for creating consistently configured AMIP loggers."""
+
+    # Keep technical detail in files. Later observability sprints will enrich it.
+    _file_formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
+    _console_formatter = FriendlyConsoleFormatter()
 
     @classmethod
     def get_logger(
@@ -34,71 +47,46 @@ class LoggerFactory:
         console: bool = True,
         file: bool = True,
     ) -> logging.Logger:
-        """Create and configure a logger instance.
-        
-        Args:
-            name: Logger name (typically __name__)
-            level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-            console: Whether to add console handler
-            file: Whether to add file handler
-            
-        Returns:
-            Configured logger instance
-        """
+        """Create and configure a logger instance."""
         logger = logging.getLogger(name)
-        
-        # Set log level
+
         if level is None:
             level = settings.logging.LOG_LEVEL
         logger.setLevel(getattr(logging, level.upper(), logging.INFO))
-        
-        # Clear existing handlers to avoid duplicates
+        logger.propagate = False
+
+        # Clear existing handlers to avoid duplicate output on reload/import.
         logger.handlers.clear()
-        
-        # Add console handler
+
         if console:
             console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(cls._formatter)
+            console_handler.setFormatter(cls._console_formatter)
             logger.addHandler(console_handler)
-        
-        # Add file handler
+
         if file:
             file_handler = cls._create_file_handler()
-            file_handler.setFormatter(cls._formatter)
+            file_handler.setFormatter(cls._file_formatter)
             logger.addHandler(file_handler)
-        
+
         return logger
 
     @classmethod
     def _create_file_handler(cls) -> RotatingFileHandler:
-        """Create a rotating file handler.
-        
-        Returns:
-            Configured RotatingFileHandler
-        """
-        # Create logs directory if it doesn't exist
+        """Create the existing rotating technical file handler."""
         log_dir = os.path.dirname(settings.logging.LOG_FILE)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
-        
-        handler = RotatingFileHandler(
+
+        return RotatingFileHandler(
             settings.logging.LOG_FILE,
             maxBytes=settings.logging.LOG_MAX_BYTES,
             backupCount=settings.logging.LOG_BACKUP_COUNT,
-            encoding="utf-8"
+            encoding="utf-8",
         )
-        return handler
 
 
 def setup_logging() -> logging.Logger:
-    """Configure application logging.
-    
-    Sets up the main logger with both console and file handlers.
-    Uses rotation for file handler to manage log file size.
-    
-    Returns:
-        Configured logger instance
-    """
+    """Configure the main AMIP logger for console and file output."""
     return LoggerFactory.get_logger(
         "amip",
         level=settings.logging.LOG_LEVEL,
@@ -107,5 +95,4 @@ def setup_logging() -> logging.Logger:
     )
 
 
-# Initialize logger when module is imported
 logger = setup_logging()
