@@ -91,6 +91,7 @@ class LoggerFactory:
             maxBytes=settings.logging.LOG_MAX_BYTES,
             backupCount=settings.logging.LOG_BACKUP_COUNT,
             encoding="utf-8",
+            delay=True,
         )
         handler.addFilter(cls._context_filter)
         handler.setFormatter(cls._file_formatter)
