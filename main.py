@@ -30,12 +30,12 @@ from app.web import router as web_router
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    logger.info("Starting %s in %s environment", settings.APP_NAME, settings.ENVIRONMENT)
+    logger.info("AMIP iniciado (%s)", settings.ENVIRONMENT)
     try:
         yield
     finally:
         engine.dispose()
-        logger.info("Stopped %s", settings.APP_NAME)
+        logger.info("AMIP encerrado")
 
 
 app = FastAPI(
@@ -80,13 +80,13 @@ def readiness_check() -> dict[str, str]:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
     except Exception as exc:
-        logger.error("Readiness database check failed: %s", exc)
+        logger.error("Banco de dados indisponível na verificação de prontidão: %s", exc)
         raise HTTPException(status_code=503, detail="database unavailable") from exc
     return {"status": "ready", "database": "reachable", "version": app.version}
 
 
 if __name__ == "__main__":
-    logger.info("Starting %s on %s:%s", settings.APP_NAME, settings.HOST, settings.PORT)
+    logger.info("Servidor disponível em http://%s:%s", settings.HOST, settings.PORT)
     uvicorn.run(
         "main:app",
         host=settings.HOST,
