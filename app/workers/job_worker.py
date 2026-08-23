@@ -11,6 +11,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from app.core.enums import JobStatus, JobType
+from app.core.error_codes import ErrorCode, job_failure_code
 from app.core.logging import log_context
 from app.database.session import SessionLocal
 from app.models.processing_job import ProcessingJob
@@ -74,6 +75,7 @@ class JobWorker:
                 return False
 
             job_type = JobType(job.job_type)
+            failure_code = job_failure_code(job_type)
             handler = self.handlers[job_type]
             with log_context(
                 meeting_id=job.meeting_id,
@@ -81,6 +83,7 @@ class JobWorker:
                 job_type=job.job_type,
                 attempt=job.attempt,
                 worker_id=self.worker_id,
+                error_code=failure_code.value,
             ):
                 heartbeat_stop, heartbeat_thread = self._start_heartbeat(
                     job.id,
@@ -102,7 +105,11 @@ class JobWorker:
                 except Exception as exc:
                     heartbeat_stop.set()
                     heartbeat_thread.join(timeout=2)
-                    logger.exception("Job %s failed", job.id)
+                    logger.exception(
+                        "Job %s failed",
+                        job.id,
+                        extra={"error_code": failure_code.value},
+                    )
                     if not service.fail_or_retry(
                         job.id,
                         self.worker_id,
@@ -148,10 +155,15 @@ class JobWorker:
                                 "Worker %s lost heartbeat ownership for %s",
                                 self.worker_id,
                                 job_id,
+                                extra={"error_code": ErrorCode.HEARTBEAT_FAILURE.value},
                             )
                             return
                     except Exception:
-                        logger.exception("Heartbeat failed for job %s", job_id)
+                        logger.exception(
+                            "Heartbeat failed for job %s",
+                            job_id,
+                            extra={"error_code": ErrorCode.HEARTBEAT_FAILURE.value},
+                        )
                     finally:
                         heartbeat_session.close()
 
