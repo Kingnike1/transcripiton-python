@@ -16,7 +16,9 @@ class ErrorCode(StrEnum):
     HEARTBEAT_FAILURE = "WORKER-002"
     TRANSCRIPTION_FAILURE = "TRANSCRIBE-001"
     DIARIZATION_FAILURE = "DIARIZE-001"
-    ANALYSIS_FAILURE = "ANALYSIS-001"
+    SUMMARY_FAILURE = "SUMMARY-001"
+    EXPORT_FAILURE = "EXPORT-001"
+    PIPELINE_FAILURE = "PIPELINE-001"
     AUDIO_FAILURE = "AUDIO-001"
     RUNTIME_DEPENDENCY = "RUNTIME-001"
 
@@ -27,6 +29,8 @@ def job_failure_code(job_type: JobType | str) -> ErrorCode:
     mapping = {
         JobType.TRANSCRIBE.value: ErrorCode.TRANSCRIPTION_FAILURE,
         JobType.DIARIZE.value: ErrorCode.DIARIZATION_FAILURE,
-        JobType.ANALYZE.value: ErrorCode.ANALYSIS_FAILURE,
+        JobType.SUMMARIZE.value: ErrorCode.SUMMARY_FAILURE,
+        JobType.EXPORT.value: ErrorCode.EXPORT_FAILURE,
+        JobType.FULL_PIPELINE.value: ErrorCode.PIPELINE_FAILURE,
     }
     return mapping.get(value, ErrorCode.WORKER_FAILURE)
