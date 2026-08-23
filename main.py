@@ -21,6 +21,7 @@ from app.api.participants import router as participants_router
 from app.api.search import router as search_router
 from app.api.transcriptions import router as transcriptions_router
 from app.config import settings
+from app.core.error_codes import ErrorCode
 from app.core.handlers import register_exception_handlers
 from app.core.logging import logger
 from app.core.request_context import register_request_id_middleware
@@ -80,7 +81,10 @@ def readiness_check() -> dict[str, str]:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
     except Exception as exc:
-        logger.error("Banco de dados indisponível na verificação de prontidão: %s", exc)
+        logger.exception(
+            "Banco de dados indisponível durante verificação de prontidão",
+            extra={"error_code": ErrorCode.DATABASE_UNAVAILABLE.value},
+        )
         raise HTTPException(status_code=503, detail="database unavailable") from exc
     return {"status": "ready", "database": "reachable", "version": app.version}
 
