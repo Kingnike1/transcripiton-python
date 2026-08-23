@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
@@ -68,7 +69,7 @@ class LoggerFactory:
 
     @classmethod
     def configure_root(cls, level: Optional[str] = None) -> logging.Logger:
-        """Capture logs from AMIP modules that use ``logging.getLogger(__name__)``."""
+        """Capture logs from modules that use ``logging.getLogger(__name__)``."""
         root = logging.getLogger()
         root.setLevel(cls._level(level))
         root.handlers.clear()
@@ -95,15 +96,40 @@ class LoggerFactory:
         return logger
 
 
+def _install_uncaught_exception_hooks() -> None:
+    """Persist tracebacks for otherwise uncaught main/thread exceptions."""
+
+    def handle_main(exc_type, exc_value, exc_traceback) -> None:  # type: ignore[no-untyped-def]
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        logging.getLogger("amip.uncaught").critical(
+            "Unhandled application exception",
+            exc_info=(exc_type, exc_value, exc_traceback),
+        )
+
+    def handle_thread(args: threading.ExceptHookArgs) -> None:
+        logging.getLogger("amip.uncaught.thread").critical(
+            "Unhandled exception in thread %s",
+            args.thread.name if args.thread else "unknown",
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+        )
+
+    sys.excepthook = handle_main
+    threading.excepthook = handle_thread
+
+
 def setup_logging() -> logging.Logger:
-    """Configure root capture plus the main AMIP logger."""
+    """Configure root capture, main AMIP logger, and traceback safety nets."""
     LoggerFactory.configure_root(settings.logging.LOG_LEVEL)
-    return LoggerFactory.get_logger(
+    main_logger = LoggerFactory.get_logger(
         "amip",
         level=settings.logging.LOG_LEVEL,
         console=True,
         file=True,
     )
+    _install_uncaught_exception_hooks()
+    return main_logger
 
 
 logger = setup_logging()
