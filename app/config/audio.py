@@ -1,5 +1,7 @@
 """Audio inspection and processing configuration."""
 
+from typing import Optional
+
 from pydantic import Field
 
 from app.config.base import AMIPBaseSettings
@@ -9,6 +11,13 @@ class AudioSettings(AMIPBaseSettings):
     """Audio processing and local speech-to-text settings."""
 
     FFPROBE_BINARY: str = Field(default="ffprobe", description="ffprobe executable name or path")
+    FFMPEG_BIN_DIR: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional FFmpeg bin directory. On Windows it must point to a Shared build "
+            "containing ffmpeg.exe and the avcodec/avformat/avutil DLLs."
+        ),
+    )
     FFPROBE_TIMEOUT_SECONDS: int = Field(default=15, ge=1)
     WHISPER_MODEL: str = Field(default="base")
     WHISPER_LANGUAGE: str = Field(default="auto")
