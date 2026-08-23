@@ -11,6 +11,12 @@
   const status = document.getElementById('recordStatus');
   const timer = document.getElementById('recordTimer');
   const preview = document.getElementById('recordPreview');
+  const modeInputs = Array.from(document.querySelectorAll('input[name="recordingMode"]'));
+  const readinessBadge = document.getElementById('recordingReadinessBadge');
+  const microphoneReadiness = document.getElementById('microphoneReadiness');
+  const meetingAudioReadinessRow = document.getElementById('meetingAudioReadinessRow');
+  const meetingAudioReadiness = document.getElementById('meetingAudioReadiness');
+  const modeHelp = document.getElementById('recordModeHelp');
 
   let recorder = null;
   let stream = null;
@@ -21,10 +27,47 @@
   let timerId = null;
   let previewUrl = null;
   let discardRequested = false;
+  let recordingMode = 'room';
 
   function setStatus(message, kind = 'secondary') {
     status.className = `small text-${kind}`;
     status.textContent = message;
+  }
+
+  function setReadinessBadge(label, kind = 'secondary') {
+    readinessBadge.className = `badge text-bg-${kind}`;
+    readinessBadge.textContent = label;
+  }
+
+  function setModeInputsDisabled(disabled) {
+    modeInputs.forEach(input => {
+      input.disabled = disabled;
+    });
+  }
+
+  function renderRecordingMode() {
+    const selected = modeInputs.find(input => input.checked);
+    recordingMode = selected?.value || 'room';
+
+    microphoneReadiness.textContent = 'Será solicitado ao iniciar';
+    microphoneReadiness.className = 'text-secondary';
+
+    if (recordingMode === 'online') {
+      meetingAudioReadinessRow.classList.remove('d-none');
+      meetingAudioReadiness.textContent = 'Ainda não selecionado';
+      meetingAudioReadiness.className = 'text-warning';
+      setReadinessBadge('Configuração incompleta', 'warning');
+      modeHelp.textContent = 'Modo online: será necessário autorizar o microfone e selecionar a aba da reunião com áudio. A captura remota será habilitada na próxima etapa.';
+      startBtn.disabled = true;
+      setStatus('Modo online selecionado. A fonte de áudio da reunião ainda precisa ser configurada.', 'warning');
+      return;
+    }
+
+    meetingAudioReadinessRow.classList.add('d-none');
+    setReadinessBadge('Pronto para solicitar microfone', 'secondary');
+    modeHelp.textContent = 'Modo presencial: o navegador usará somente o microfone deste computador.';
+    startBtn.disabled = false;
+    setStatus('Nenhuma gravação em andamento.', 'secondary');
   }
 
   function formatDuration(ms) {
@@ -56,7 +99,6 @@
 
   function resetControls() {
     startBtn.classList.remove('d-none');
-    startBtn.disabled = false;
     stopBtn.classList.add('d-none');
     stopBtn.disabled = false;
     uploadBtn.classList.add('d-none');
@@ -64,6 +106,8 @@
     discardBtn.classList.add('d-none');
     discardBtn.disabled = false;
     timer.textContent = '00:00';
+    setModeInputsDisabled(false);
+    renderRecordingMode();
   }
 
   function extensionForMime(mime) {
@@ -97,8 +141,6 @@
         error && (error.name === 'OverconstrainedError' || error.name === 'TypeError');
       if (!unsupportedConstraints) throw error;
 
-      // Older/limited browsers may reject one of the optional processing flags.
-      // Fall back to the default microphone capture instead of blocking recording.
       return navigator.mediaDevices.getUserMedia({audio: true});
     }
   }
@@ -106,6 +148,12 @@
   async function startRecording() {
     resetPreview();
     discardRequested = false;
+
+    if (recordingMode !== 'room') {
+      setStatus('A gravação online será habilitada quando a fonte de áudio da reunião estiver pronta.', 'warning');
+      return;
+    }
+
     if (!window.isSecureContext) {
       setStatus('O microfone exige HTTPS ou localhost.', 'danger');
       return;
@@ -116,7 +164,19 @@
     }
 
     try {
+      setModeInputsDisabled(true);
+      setReadinessBadge('Solicitando microfone', 'primary');
+      microphoneReadiness.textContent = 'Solicitando permissão...';
+      microphoneReadiness.className = 'text-primary';
+
       stream = await requestRoomAudio();
+      const audioTrack = stream.getAudioTracks()[0];
+      if (!audioTrack) throw new Error('MicrophoneAudioTrackMissing');
+
+      microphoneReadiness.textContent = 'Pronto';
+      microphoneReadiness.className = 'text-success';
+      setReadinessBadge('Pronto', 'success');
+
       const mimeType = preferredMimeType();
       recorder = mimeType ? new MediaRecorder(stream, {mimeType}) : new MediaRecorder(stream);
       recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
@@ -132,7 +192,6 @@
           resetControls();
           recorder = null;
           discardRequested = false;
-          setStatus('Nenhuma gravação em andamento.', 'secondary');
           return;
         }
         recordedBlob = new Blob(chunks, {type: recordedMimeType});
@@ -150,6 +209,7 @@
         startBtn.classList.add('d-none');
         stopBtn.classList.add('d-none');
         stopBtn.disabled = false;
+        setModeInputsDisabled(false);
         setStatus(`Gravação pronta (${(recordedBlob.size / 1024 / 1024).toFixed(2)} MB). Revise antes de enviar.`, 'success');
       });
       recorder.start(1000);
@@ -163,10 +223,14 @@
       discardBtn.classList.remove('d-none');
       stopBtn.classList.remove('d-none');
       stopBtn.disabled = false;
-      setStatus('Gravando o ambiente sem supressão de voz do navegador.', 'danger');
+      setStatus('Gravando reunião presencial sem supressão de voz do navegador.', 'danger');
     } catch (error) {
       stopTracks();
-      resetControls();
+      setModeInputsDisabled(false);
+      setReadinessBadge('Microfone indisponível', 'danger');
+      microphoneReadiness.textContent = 'Indisponível';
+      microphoneReadiness.className = 'text-danger';
+      startBtn.disabled = false;
       const denied = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
       setStatus(denied ? 'Permissão de microfone negada pelo navegador.' : 'Não foi possível iniciar o microfone.', 'danger');
     }
@@ -190,7 +254,6 @@
     resetPreview();
     recorder = null;
     resetControls();
-    setStatus('Nenhuma gravação em andamento.', 'secondary');
   }
 
   async function uploadRecording() {
@@ -222,9 +285,12 @@
     }
   }
 
+  modeInputs.forEach(input => input.addEventListener('change', renderRecordingMode));
   startBtn.addEventListener('click', startRecording);
   stopBtn.addEventListener('click', stopRecording);
   discardBtn.addEventListener('click', discardRecording);
   uploadBtn.addEventListener('click', uploadRecording);
   window.addEventListener('beforeunload', stopTracks);
+
+  renderRecordingMode();
 })();
