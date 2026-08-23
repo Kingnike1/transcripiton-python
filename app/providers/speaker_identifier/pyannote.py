@@ -1,7 +1,12 @@
 """Local pyannote speaker-diarization provider."""
 
 from collections.abc import Callable
-from typing import Any, Optional
+from contextlib import contextmanager
+from pathlib import Path
+import os
+import subprocess
+import tempfile
+from typing import Any, Iterator, Optional
 from uuid import uuid4
 
 from app.core.time import utc_now
@@ -22,9 +27,12 @@ class PyannoteSpeakerIdentifier(ISpeakerIdentifier):
         pipeline_factory: Optional[PipelineFactory] = None,
         ffmpeg_bin_dir: Optional[str] = None,
     ) -> None:
+        self._normalize_audio = pipeline_factory is None
+        self._ffmpeg_bin_dir: Optional[Path] = None
+
         if pipeline_factory is None:
             try:
-                prepare_media_runtime(ffmpeg_bin_dir)
+                self._ffmpeg_bin_dir = prepare_media_runtime(ffmpeg_bin_dir)
                 from pyannote.audio import Pipeline
             except (ImportError, OSError, RuntimeError) as exc:  # pragma: no cover - environment contract
                 raise RuntimeError(
@@ -51,6 +59,54 @@ class PyannoteSpeakerIdentifier(ISpeakerIdentifier):
             except ImportError as exc:
                 raise RuntimeError("torch is required for non-CPU diarization") from exc
 
+    @contextmanager
+    def _prepared_audio(self, audio_path: str) -> Iterator[str]:
+        """Yield normalized WAV/PCM audio with deterministic metadata for pyannote."""
+        if not self._normalize_audio:
+            yield audio_path
+            return
+
+        source = Path(audio_path)
+        if not source.is_file():
+            raise RuntimeError(f"audio file does not exist: {audio_path}")
+
+        if self._ffmpeg_bin_dir is None:
+            raise RuntimeError("FFmpeg runtime was not prepared for diarization")
+        ffmpeg_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+        ffmpeg_binary = self._ffmpeg_bin_dir / ffmpeg_name
+        if not ffmpeg_binary.is_file():
+            raise RuntimeError(f"FFmpeg executable was not found: {ffmpeg_binary}")
+
+        with tempfile.TemporaryDirectory(prefix="amip-diarization-") as temp_dir:
+            normalized = Path(temp_dir) / "normalized.wav"
+            completed = subprocess.run(
+                [
+                    str(ffmpeg_binary),
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-vn",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "16000",
+                    "-c:a",
+                    "pcm_s16le",
+                    str(normalized),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if completed.returncode != 0 or not normalized.is_file():
+                detail = completed.stderr.strip() or "unknown FFmpeg error"
+                raise RuntimeError(f"failed to normalize audio for diarization: {detail}")
+
+            yield str(normalized)
+
     def diarize(
         self,
         audio_path: str,
@@ -59,7 +115,9 @@ class PyannoteSpeakerIdentifier(ISpeakerIdentifier):
         kwargs: dict[str, Any] = {}
         if num_speakers is not None:
             kwargs["num_speakers"] = num_speakers
-        output = self.pipeline(audio_path, **kwargs)
+
+        with self._prepared_audio(audio_path) as prepared_audio_path:
+            output = self.pipeline(prepared_audio_path, **kwargs)
         if output is None:
             raise RuntimeError("pyannote returned no diarization result")
 
