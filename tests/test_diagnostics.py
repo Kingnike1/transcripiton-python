@@ -18,6 +18,7 @@ def test_sensitive_values_are_redacted(monkeypatch) -> None:
 
     assert "hf_super_secret_value" not in redacted
     assert "hunter2" not in redacted
+    assert "abc123" not in redacted
     assert "[REDACTED]" in redacted
 
 
