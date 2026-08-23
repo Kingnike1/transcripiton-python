@@ -1,5 +1,7 @@
 """Tests for the Sprint 10 speaker-diarization vertical slice."""
 
+import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -7,6 +9,7 @@ import pytest
 from app.core.enums import ProcessingStatus
 from app.models.audio import Audio
 from app.models.meeting import Meeting
+from app.providers.speaker_identifier import pyannote as pyannote_module
 from app.providers.speaker_identifier.pyannote import PyannoteSpeakerIdentifier
 from app.services.diarization_service import DiarizationService
 from app.services.interfaces import DiarizationResult, SpeakerSegment, TranscriptResult, TranscriptSegment
@@ -78,6 +81,39 @@ def test_pyannote_adapter_maps_exclusive_diarization():
         "SPEAKER_00",
         "SPEAKER_01",
     ]
+
+
+def test_pyannote_normalizes_real_audio_before_pipeline(tmp_path, monkeypatch):
+    provider = PyannoteSpeakerIdentifier(
+        pipeline_factory=lambda _model_name, **_kwargs: object(),
+    )
+    provider._normalize_audio = True
+    provider._ffmpeg_bin_dir = tmp_path / "ffmpeg-bin"
+    provider._ffmpeg_bin_dir.mkdir()
+    ffmpeg_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    (provider._ffmpeg_bin_dir / ffmpeg_name).write_bytes(b"fake")
+
+    source = tmp_path / "input.webm"
+    source.write_bytes(b"audio")
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        Path(command[-1]).write_bytes(b"RIFF-normalized")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(pyannote_module.subprocess, "run", fake_run)
+
+    with provider._prepared_audio(str(source)) as prepared:
+        prepared_path = Path(prepared)
+        assert prepared_path.suffix == ".wav"
+        assert prepared_path.exists()
+        assert "-ac" in captured["command"]
+        assert "1" in captured["command"]
+        assert "-ar" in captured["command"]
+        assert "16000" in captured["command"]
+        assert "pcm_s16le" in captured["command"]
 
 
 def test_pyannote_adapter_rejects_missing_pipeline():
