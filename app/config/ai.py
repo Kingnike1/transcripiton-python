@@ -20,3 +20,10 @@ class AISettings(AMIPBaseSettings):
     OLLAMA_URL: str = Field(default="http://localhost:11434")
     OLLAMA_MODEL: str = Field(default="qwen3:4b")
     OLLAMA_TIMEOUT_SECONDS: int = Field(default=180, ge=10, le=1800)
+    OLLAMA_AUTO_START_LOCAL: bool = Field(
+        default=True,
+        description=(
+            "In development, start `ollama serve` automatically when the configured "
+            "Ollama URL points to localhost and no server is listening."
+        ),
+    )
