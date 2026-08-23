@@ -36,9 +36,10 @@ class SensitiveDataRedactor:
     """Best-effort redaction for credentials that could leak through errors."""
 
     _assignment_pattern = re.compile(
-        r"(?i)\b(secret(?:_key)?|token|password|api[_-]?key|authorization|bearer)\b"
+        r"(?i)\b(secret(?:_key)?|token|password|api[_-]?key|authorization)\b"
         r"(\s*[:=]\s*)([^\s,;]+)"
     )
+    _bearer_pattern = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
     _url_credentials_pattern = re.compile(
         r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)[^/@\s:]+:[^/@\s]+@"
     )
@@ -58,6 +59,7 @@ class SensitiveDataRedactor:
         sanitized = text
         for value in cls._known_values():
             sanitized = sanitized.replace(value, "[REDACTED]")
+        sanitized = cls._bearer_pattern.sub("Bearer [REDACTED]", sanitized)
         sanitized = cls._assignment_pattern.sub(r"\1\2[REDACTED]", sanitized)
         sanitized = cls._url_credentials_pattern.sub(r"\g<scheme>[REDACTED]@", sanitized)
         return sanitized
